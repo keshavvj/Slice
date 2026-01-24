@@ -31,9 +31,9 @@ export default function LandingPage() {
         </nav>
 
         <div className="flex items-center gap-4">
-          <Link href="/login" className="hidden md:block text-sm font-medium text-white/60 hover:text-white transition-colors">
+          <SignInButton className="hidden md:block text-sm font-medium text-white/60 hover:text-white transition-colors bg-transparent border-0 h-auto p-0">
             Log in
-          </Link>
+          </SignInButton>
           <div className="bg-white/10 hover:bg-white/20 transition-colors backdrop-blur-md rounded-full p-[1px]">
             <SignInButton className="rounded-full px-6 bg-transparent border-0 hover:bg-transparent text-white">
               Get Started

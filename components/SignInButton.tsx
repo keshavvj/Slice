@@ -1,5 +1,5 @@
 
-import { signIn } from "@/lib/auth"
+import { doSignIn } from "@/lib/signin"
 import { Button } from "@/components/ui/button"
 import { ComponentProps } from "react"
 
@@ -11,7 +11,7 @@ type SignInButtonProps = {
 
 export function SignInButton({
     provider = "google",
-    redirectTo,
+    redirectTo = "/dashboard",
     children,
     className,
     variant = "outline",
@@ -21,7 +21,7 @@ export function SignInButton({
         <form
             action={async () => {
                 "use server"
-                await signIn(provider, { redirectTo })
+                await doSignIn(provider, redirectTo)
             }}
         >
             <Button type="submit" variant={variant} className={className} {...props}>
