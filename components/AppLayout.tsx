@@ -13,7 +13,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     }
 
     return (
-        <div className="flex min-h-screen w-full bg-background">
+        <div className="flex min-h-screen w-full bg-muted/20">
             <Aside className="hidden md:block" />
             <main className="flex-1 overflow-y-auto">
                 <div className="container mx-auto p-6 md:p-8">

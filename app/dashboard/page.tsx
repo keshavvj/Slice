@@ -5,24 +5,16 @@ import * as React from 'react';
 import { SafeToSpendCard } from '@/components/dashboard/SafeToSpendCard';
 import { PortfolioCard } from '@/components/dashboard/PortfolioCard';
 import { RecentTransactions } from '@/components/dashboard/RecentTransactions';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Plus, Send, Zap, Split, ArrowUpRight } from 'lucide-react';
 import { useSession } from "next-auth/react";
+import Link from 'next/link';
 
 export default function Dashboard() {
     const { user, transactions, setTransactions, addTransaction } = useStore();
     const { data: session } = useSession();
-
-    React.useEffect(() => {
-        // Initial fetch if empty (demo logic)
-        // Actually we seeded data in store, so it's never empty. 
-        // To demo Nessie, we could force fetch if configured.
-        if (process.env.NEXT_PUBLIC_NESSIE_API_KEY) {
-            // fetch logic
-        }
-    }, []);
 
     const handleSimulateRide = () => {
         addTransaction({
@@ -34,44 +26,165 @@ export default function Dashboard() {
             status: "posted",
             accountId: "acc_1"
         });
-        // Maybe trigger toast?
+        // Normally use toast here
         alert("Simulated Uber ride for $32.50");
     };
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                    <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-                    {session?.user?.name && <p className="text-muted-foreground">Welcome back, {session.user.name}</p>}
+        <div className="space-y-8 animate-in fade-in duration-500">
+            {/* Header Section */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-4xl font-black tracking-tighter">
+                        Good afternoon, {session?.user?.name?.split(' ')[0] || 'Friend'}
+                    </h1>
+                    <p className="text-muted-foreground mt-1 text-lg">
+                        Here's what's happening with your money.
+                    </p>
                 </div>
-                <Button onClick={handleSimulateRide}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Simulate Ride
-                </Button>
+                <div className="flex gap-2">
+                    <Button size="lg" className="rounded-full shadow-lg shadow-primary/20" onClick={handleSimulateRide}>
+                        <Plus className="mr-2 h-4 w-4" /> Add Money
+                    </Button>
+                </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <SafeToSpendCard />
-                <PortfolioCard />
-
-                <Card className="col-span-1">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium">Pending Splits</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">3</div>
-                        <p className="text-xs text-muted-foreground">
-                            Needs review
-                        </p>
-                    </CardContent>
-                </Card>
+            {/* Quick Actions Row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Link href="/splits">
+                    <Card className="hover:bg-muted/50 transition-colors cursor-pointer border-dashed border-2 shadow-none hover:border-primary/50 group">
+                        <CardContent className="p-6 flex flex-col items-center justify-center gap-3 text-center">
+                            <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                <Split className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <div className="font-bold">Split a Bill</div>
+                                <div className="text-xs text-muted-foreground">Scan or select</div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </Link>
+                <Link href="/friends">
+                    <Card className="hover:bg-muted/50 transition-colors cursor-pointer border-dashed border-2 shadow-none hover:border-primary/50 group">
+                        <CardContent className="p-6 flex flex-col items-center justify-center gap-3 text-center">
+                            <div className="w-12 h-12 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                <Send className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <div className="font-bold">Send Cash</div>
+                                <div className="text-xs text-muted-foreground">Free to friends</div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </Link>
+                <Link href="/investing">
+                    <Card className="hover:bg-muted/50 transition-colors cursor-pointer border-dashed border-2 shadow-none hover:border-primary/50 group">
+                        <CardContent className="p-6 flex flex-col items-center justify-center gap-3 text-center">
+                            <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                <ArrowUpRight className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <div className="font-bold">Invest</div>
+                                <div className="text-xs text-muted-foreground">Auto-deposit</div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </Link>
+                <div onClick={handleSimulateRide} className="cursor-pointer">
+                    <Card className="hover:bg-muted/50 transition-colors border-dashed border-2 shadow-none hover:border-primary/50 group h-full">
+                        <CardContent className="p-6 flex flex-col items-center justify-center gap-3 text-center">
+                            <div className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                <Zap className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <div className="font-bold">Simulate Charge</div>
+                                <div className="text-xs text-muted-foreground">Demo feature</div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-                <RecentTransactions />
-                {/* Could add Pending Splits table here */}
+            {/* Main Grid */}
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {/* Left Column (Spending) */}
+                <div className="space-y-6 lg:col-span-2">
+                    <div className="grid gap-6 md:grid-cols-2">
+                        <SafeToSpendCard />
+                        <PortfolioCard />
+                    </div>
+                    <RecentTransactions />
+                </div>
+
+                {/* Right Column (Social/Status) */}
+                <div className="space-y-6">
+                    <Card className="bg-gradient-to-br from-primary to-violet-600 text-primary-foreground border-none shadow-xl">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Split className="w-5 h-5" /> Pending Requests
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-4xl font-black mb-2">$45.00</div>
+                            <p className="text-primary-foreground/80 text-sm mb-4">
+                                Alex and Sarah owe you for "Ski Trip Dinner"
+                            </p>
+                            <Link href="/splits">
+                                <Button variant="secondary" className="w-full text-primary font-bold">
+                                    View Details
+                                </Button>
+                            </Link>
+                        </CardContent>
+                    </Card>
+
+                    <SocialFeedMock />
+                </div>
             </div>
         </div>
     );
+}
+
+function SocialFeedMock() {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="text-base">Friends Activity</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="flex gap-3 items-start border-b pb-4 last:border-0 last:pb-0">
+                    <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-xs">
+                        JD
+                    </div>
+                    <div className="space-y-1">
+                        <p className="text-sm">
+                            <span className="font-medium">John Doe</span> paid <span className="font-medium">Sarah</span>
+                        </p>
+                        <p className="text-xs text-muted-foreground">Pizza Night 🍕 • 2m ago</p>
+                    </div>
+                </div>
+                <div className="flex gap-3 items-start border-b pb-4 last:border-0 last:pb-0">
+                    <div className="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center text-white font-bold text-xs">
+                        AK
+                    </div>
+                    <div className="space-y-1">
+                        <p className="text-sm">
+                            <span className="font-medium">Amy K</span> achieved a goal
+                        </p>
+                        <p className="text-xs text-muted-foreground">Bali Trip 🌴 • 1h ago</p>
+                    </div>
+                </div>
+                <div className="flex gap-3 items-start border-b pb-4 last:border-0 last:pb-0">
+                    <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center text-white font-bold text-xs">
+                        MS
+                    </div>
+                    <div className="space-y-1">
+                        <p className="text-sm">
+                            <span className="font-medium">Mike S</span> invested in <span className="font-medium">Tech ETF</span>
+                        </p>
+                        <p className="text-xs text-muted-foreground">Round-ups 📈 • 4h ago</p>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+    )
 }
