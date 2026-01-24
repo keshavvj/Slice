@@ -14,9 +14,11 @@ import {
     Settings,
     LogOut
 } from 'lucide-react';
+import { handleSignOut } from '@/lib/actions';
+import { useSession } from "next-auth/react";
 
 const NAV_ITEMS = [
-    { label: 'Dashboard', href: '/', icon: Home },
+    { label: 'Dashboard', href: '/dashboard', icon: Home },
     { label: 'Splits', href: '/splits', icon: Split },
     { label: 'Friends', href: '/friends', icon: Users },
     { label: 'Investing', href: '/investing', icon: TrendingUp },
@@ -26,6 +28,7 @@ const NAV_ITEMS = [
 
 export function AppSidebar() {
     const pathname = usePathname();
+    const { data: session } = useSession();
 
     return (
         <div className="flex h-screen w-64 flex-col border-r bg-sidebar text-sidebar-foreground">
@@ -51,10 +54,17 @@ export function AppSidebar() {
                 </nav>
             </div>
             <div className="border-t p-4">
-                <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-destructive">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Log Out
-                </Button>
+                {session?.user && (
+                    <div className="mb-2 px-4 text-xs font-medium text-muted-foreground truncate">
+                        {session.user.name || session.user.email}
+                    </div>
+                )}
+                <form action={handleSignOut}>
+                    <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-destructive">
+                        <LogOut className="mr-2 h-4 w-4" />
+                        Log Out
+                    </Button>
+                </form>
             </div>
         </div>
     );
