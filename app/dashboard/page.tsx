@@ -13,7 +13,7 @@ import { useSession } from "next-auth/react";
 import Link from 'next/link';
 
 export default function Dashboard() {
-    const { user, transactions, setTransactions, addTransaction } = useStore();
+    const { user, transactions, setTransactions, addTransaction, nessieConnected } = useStore();
     const { data: session } = useSession();
 
     const handleSimulateRide = () => {
@@ -32,6 +32,14 @@ export default function Dashboard() {
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
+            {/* Data Source Banner */}
+            <div className={`w-full py-2 px-4 text-center text-xs font-bold uppercase tracking-wider rounded border ${nessieConnected
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : 'bg-amber-50 text-amber-700 border-amber-200'
+                }`}>
+                {nessieConnected ? '✓ Using Live Nessie Data' : '⚠ Using Demo Data'}
+            </div>
+
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>

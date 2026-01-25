@@ -92,4 +92,26 @@ export type AppState = {
   investments: InvestmentEntry[];
   portfolio: Portfolio;
   goals: SharedGoal[];
+
+  // Nessie Integration State
+  nessieConnected: boolean;
+  lastFetchedAt: string | null;
+  selectedCustomerId: string | null;
+  selectedAccountId: string | null;
+  lastFetchSamples?: any; // For debug panel
+
+  // Actions
+  setTransactions: (txs: Transaction[]) => void;
+  addTransaction: (tx: Transaction) => void;
+  createSplitRequest: (req: SplitRequest) => void;
+  markSplitPaid: (id: string) => void;
+  updateUserParams: (params: Partial<User>) => void;
+  performInvestment: (amount: number, type: "roundup" | "paycheck" | "manual", description: string) => void;
+  checkAutoSplits: () => void;
+  addGoal: (goal: SharedGoal) => void;
+  contributeToGoal: (goalId: string, amount: number) => void;
+
+  syncNessieData: (force?: boolean) => Promise<void>;
+  simulateNessieTransaction: (merchant: string, amount: number) => void;
+  resetAll: () => void;
 };

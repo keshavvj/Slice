@@ -1,60 +1,91 @@
-import { Transaction } from "@/types";
-import { SEED_TRANSACTIONS } from "@/data/seed";
+// lib/nessie.ts
 
-const API_KEY = process.env.NEXT_PUBLIC_NESSIE_API_KEY;
-const BASE_URL = "http://api.nessieisreal.com";
+// Client-side wrapper for calling internal Nessie proxy routes
 
-export async function getNessieCustomer(customerId: string) {
-    if (!API_KEY) return null;
-    try {
-        const res = await fetch(`${BASE_URL}/customers/${customerId}?key=${API_KEY}`);
-        if (!res.ok) throw new Error("Failed to fetch customer");
-        return await res.json();
-    } catch (error) {
-        console.error("Nessie API Error:", error);
-        return null;
+export type NessieCustomer = {
+    _id: string;
+    first_name: string;
+    last_name: string;
+    address: {
+        street_number: string;
+        street_name: string;
+        city: string;
+        state: string;
+        zip: string;
+    };
+};
+
+export type NessieAccount = {
+    _id: string;
+    type: string;
+    nickname: string;
+    rewards: number;
+    balance: number;
+    account_number: string;
+    customer_id: string;
+};
+
+// Common shape for simplified handling
+export type NessieActivity = {
+    _id: string;
+    type: string;
+    status: string;
+    payer_id?: string;
+    payee_id?: string;
+    amount: number;
+    description?: string;
+    merchant_id?: string; // for purchases
+    purchase_date?: string; // for purchases
+    transaction_date?: string; // for transfers/deposits
+    date?: string; // fallback
+};
+
+export type NessieBill = {
+    _id: string;
+    status: string;
+    payee: string;
+    nickname: string;
+    payment_date: string;
+    recurring_date: number;
+    payment_amount: number;
+    account_id: string;
+};
+
+// Internal API helpers
+export async function fetchInternal(endpoint: string, debug = false) {
+    const separator = endpoint.includes('?') ? '&' : '?';
+    const url = `/api/nessie/${endpoint}${debug ? `${separator}debug=1` : ''}`;
+
+    const res = await fetch(url);
+    if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error.error || `Failed to fetch ${endpoint} (Status: ${res.status})`);
     }
+    return res.json();
 }
 
-export async function getNessieAccounts(customerId: string) {
-    if (!API_KEY) return null;
-    try {
-        const res = await fetch(`${BASE_URL}/customers/${customerId}/accounts?key=${API_KEY}`);
-        if (!res.ok) throw new Error("Failed to fetch accounts");
-        return await res.json();
-    } catch (error) {
-        console.error("Nessie API Error:", error);
-        return null;
+export const nessieClient = {
+    getCustomers: async (debug = false) => {
+        return fetchInternal('customers', debug);
+    },
+
+    getAccounts: async (customerId: string, debug = false) => {
+        return fetchInternal(`accounts?customerId=${customerId}`, debug);
+    },
+
+    getPurchases: async (accountId: string, debug = false) => {
+        return fetchInternal(`transactions?accountId=${accountId}`, debug);
+    },
+
+    getTransfers: async (accountId: string, debug = false) => {
+        return fetchInternal(`transfers?accountId=${accountId}`, debug);
+    },
+
+    getDeposits: async (accountId: string, debug = false) => {
+        return fetchInternal(`deposits?accountId=${accountId}`, debug);
+    },
+
+    getBills: async (accountId: string, debug = false) => {
+        return fetchInternal(`bills?accountId=${accountId}`, debug);
     }
-}
-
-export async function getNessieTransactions(accountId: string): Promise<Transaction[] | null> {
-    if (!API_KEY) return null;
-    try {
-        const res = await fetch(`${BASE_URL}/accounts/${accountId}/transactions?key=${API_KEY}`);
-        if (!res.ok) throw new Error("Failed to fetch transactions");
-        const data = await res.json();
-
-        // Map Nessie tx format to our internal format
-        return data.map((tx: any) => ({
-            id: tx._id,
-            date: tx.purchase_date || new Date().toISOString().split("T")[0],
-            merchant_name: tx.merchant_id || "Unknown Merchant", // Real Nessie might need a merchant fetch, simplification for MVP
-            category: tx.category || "General", // Nessie might not provide category on tx directly without merchant lookup
-            amount: tx.amount,
-            status: "posted",
-            accountId: tx.account_id,
-            // Heuristics for paycheck?
-            isPaycheck: tx.type === "deposit",
-        }));
-    } catch (error) {
-        console.error("Nessie API Error:", error);
-        return null;
-    }
-}
-
-export async function getTransactionsWithFallback(accountId: string): Promise<Transaction[]> {
-    const realData = await getNessieTransactions(accountId);
-    if (realData && realData.length > 0) return realData;
-    return SEED_TRANSACTIONS;
-}
+};

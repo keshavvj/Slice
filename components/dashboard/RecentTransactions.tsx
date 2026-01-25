@@ -4,17 +4,25 @@ import * as React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useStore } from '@/lib/store';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { format, parseISO } from 'date-fns';
 
 export function RecentTransactions() {
-    const { transactions } = useStore();
+    const { transactions, simulateNessieTransaction } = useStore();
     const recent = transactions.slice(0, 5);
 
     return (
         <Card className="col-span-2">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Recent Transactions</CardTitle>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => simulateNessieTransaction("Uber *Trip 4522", 24.50)}
+                >
+                    Simulate Uber ($24.50)
+                </Button>
             </CardHeader>
             <CardContent>
                 <Table>

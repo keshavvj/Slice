@@ -1,30 +1,9 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { User, Transaction, Friend, SplitRequest, Bill, Portfolio, SharedGoal, InvestmentEntry } from '@/types';
+import { User, Transaction, Friend, SplitRequest, Bill, Portfolio, SharedGoal, InvestmentEntry, AppState } from '@/types';
 import { SEED_USER, SEED_FRIENDS, SEED_TRANSACTIONS, SEED_BILLS, SEED_SPLIT_REQUESTS, SEED_PORTFOLIO, SEED_GOAL } from '@/data/seed';
 import { calculateRoundup } from './logic';
-
-interface AppState {
-    user: User;
-    friends: Friend[];
-    transactions: Transaction[];
-    bills: Bill[];
-    splitRequests: SplitRequest[];
-    portfolio: Portfolio;
-    goals: SharedGoal[];
-    investments: InvestmentEntry[];
-
-    // Actions
-    setTransactions: (txs: Transaction[]) => void;
-    addTransaction: (tx: Transaction) => void;
-    createSplitRequest: (req: SplitRequest) => void;
-    markSplitPaid: (id: string) => void;
-    updateUserParams: (params: Partial<User>) => void;
-    performInvestment: (amount: number, type: "roundup" | "paycheck" | "manual", description: string) => void;
-    checkAutoSplits: () => void; // dummy for now
-    addGoal: (goal: SharedGoal) => void;
-    contributeToGoal: (goalId: string, amount: number) => void;
-}
+import { nessieClient } from './nessie';
 
 export const useStore = create<AppState>()(
     persist(
@@ -37,6 +16,14 @@ export const useStore = create<AppState>()(
             portfolio: SEED_PORTFOLIO,
             goals: [SEED_GOAL],
             investments: [],
+            splitRules: [],
+            upcomingBills: [],
+
+            nessieConnected: false,
+            lastFetchedAt: null,
+            selectedCustomerId: null,
+            selectedAccountId: null,
+            lastFetchSamples: {},
 
             setTransactions: (txs) => set({ transactions: txs }),
 
@@ -118,9 +105,124 @@ export const useStore = create<AppState>()(
                         contributions: [newContribution, ...g.contributions]
                     };
                 }),
-                // Optionally deduct from user balance? The user didn't explicitly ask, but it makes sense.
-                // I'll stick to just the goal update as requested to keep it simple and safe.
             })),
+
+            syncNessieData: async (force = false) => {
+                const state = get();
+                // Cache check: if not forced and we have recent data (e.g. < 10 mins) and txs are not empty
+                if (!force && state.nessieConnected && state.lastFetchedAt) {
+                    const tenMinsAgo = Date.now() - 10 * 60 * 1000;
+                    if (new Date(state.lastFetchedAt).getTime() > tenMinsAgo && state.transactions.length > 0) {
+                        return;
+                    }
+                }
+
+                try {
+                    // 1. Fetch Customers
+                    const custRes = await nessieClient.getCustomers(true); // debug=true to get samples
+                    const customers = custRes.data || (Array.isArray(custRes) ? custRes : []);
+                    const debugSamples: any = { customers: custRes.sample || customers.slice(0, 2) };
+
+                    if (customers.length === 0) {
+                        set({ nessieConnected: true, lastFetchedAt: new Date().toISOString(), lastFetchSamples: debugSamples });
+                        return;
+                    }
+
+                    const customer = customers[0]; // Pick first
+
+                    // 2. Fetch Accounts
+                    const accRes = await nessieClient.getAccounts(customer._id, true);
+                    const accounts = accRes.data || (Array.isArray(accRes) ? accRes : []);
+                    debugSamples.accounts = accRes.sample || accounts.slice(0, 2);
+
+                    if (accounts.length === 0) {
+                        set({
+                            nessieConnected: true,
+                            selectedCustomerId: customer._id,
+                            lastFetchedAt: new Date().toISOString(),
+                            lastFetchSamples: debugSamples
+                        });
+                        return;
+                    }
+
+                    // Pick first "checking" or fallback
+                    const checkingAccount = accounts.find((a: any) => a.type?.toLowerCase().includes('checking')) || accounts[0];
+
+                    // 3. Fetch Activity (Purchases, Transfers, Deposits)
+                    const [purchasesRes, transfersRes, depositsRes, billsRes] = await Promise.all([
+                        nessieClient.getPurchases(checkingAccount._id, true).catch(() => ({ data: [], sample: [] })),
+                        nessieClient.getTransfers(checkingAccount._id, true).catch(() => ({ data: [], sample: [] })),
+                        nessieClient.getDeposits(checkingAccount._id, true).catch(() => ({ data: [], sample: [] })),
+                        nessieClient.getBills(checkingAccount._id, true).catch(() => ({ data: [], sample: [] }))
+                    ]);
+
+                    debugSamples.purchases = purchasesRes.sample;
+                    debugSamples.transfers = transfersRes.sample;
+                    debugSamples.deposits = depositsRes.sample;
+                    debugSamples.bills = billsRes.sample;
+
+                    // Normalize & Merge
+                    const allActivity = [
+                        ...(purchasesRes.data || []),
+                        ...(transfersRes.data || []),
+                        ...(depositsRes.data || [])
+                    ];
+
+                    const mappedTransactions: Transaction[] = allActivity.map((p: any) => ({
+                        id: p._id || p.id,
+                        date: p.purchase_date || p.transaction_date || p.date || new Date().toISOString().split('T')[0],
+                        merchant_name: p.merchant_id ? `Merchant ${p.merchant_id.substring(0, 6)}` : (p.description || "Unknown Activity"),
+                        amount: p.amount,
+                        category: p.type || 'transaction',
+                        status: 'posted' as const,
+                        accountId: checkingAccount._id
+                    })).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+                    const mappedBills: Bill[] = (billsRes.data || []).map((b: any) => ({
+                        id: b._id,
+                        name: b.nickname || b.payee,
+                        amount: b.payment_amount,
+                        dueDate: typeof b.recurring_date === 'number' ? b.recurring_date : 1
+                    }));
+
+                    set((state) => ({
+                        nessieConnected: true,
+                        selectedCustomerId: customer._id,
+                        selectedAccountId: checkingAccount._id,
+                        lastFetchedAt: new Date().toISOString(),
+                        lastFetchSamples: debugSamples,
+                        transactions: mappedTransactions,
+                        bills: mappedBills.length > 0 ? mappedBills : state.bills,
+                        user: {
+                            ...state.user,
+                            checkingBalance: checkingAccount.balance,
+                            name: `${customer.first_name} ${customer.last_name}`
+                        }
+                    }));
+
+                } catch (error) {
+                    console.error("Nessie Sync Failed:", error);
+                    set({ nessieConnected: false });
+                }
+            },
+
+            simulateNessieTransaction: (merchant, amount) => {
+                const newTx: Transaction = {
+                    id: `sim_${Date.now()}`,
+                    date: new Date().toISOString().split('T')[0],
+                    merchant_name: merchant,
+                    amount: amount,
+                    category: 'Shopping',
+                    status: 'posted',
+                    accountId: get().selectedAccountId || 'demo_account'
+                };
+                get().addTransaction(newTx);
+            },
+
+            resetAll: () => {
+                localStorage.clear();
+                window.location.reload();
+            }
         }),
         {
             name: 'slice-storage',

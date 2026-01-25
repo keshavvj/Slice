@@ -34,3 +34,22 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Nessie API Integration
+
+This project integrates with the Capital One Nessie API.
+
+### Setup
+
+1. Get your API key from the Nessie portal.
+2. Add it to your `.env.local` file:
+
+```bash
+NESSIE_API_KEY=your_api_key_here
+```
+
+### Features
+
+- **Bank Sync**: Connects to Capital One accounts to fetch real balance and transactions.
+- **Demo Mode**: If no key is provided, the app falls back to simulated seed data.
+- **Simulation**: You can manually simulate transactions (e.g., "Simulate Uber") to test split and investing logic.
