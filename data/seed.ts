@@ -38,6 +38,8 @@ export const SEED_BILLS: Bill[] = [
 export const SEED_SPLIT_REQUESTS: SplitRequest[] = [
     { id: "sr_1", transactionId: "tx_95", requesterId: "u_123", friendId: "f_1", totalAmount: 18.00, amountOwed: 9.00, status: "paid", createdAt: new Date(Date.now() - 86400000 * 8).toISOString() },
     { id: "sr_2", transactionId: "tx_100", requesterId: "u_123", friendId: "f_1", totalAmount: 24.50, amountOwed: 12.25, status: "pending", createdAt: new Date().toISOString() },
+    { id: "sr_3", transactionId: "tx_external_1", requesterId: "f_1", friendId: "u_123", totalAmount: 30.00, amountOwed: 15.00, status: "pending", createdAt: new Date(Date.now() - 43200000).toISOString() },
+    { id: "sr_4", transactionId: "tx_external_2", requesterId: "f_2", friendId: "u_123", totalAmount: 60.00, amountOwed: 30.00, status: "pending", createdAt: new Date(Date.now() - 21600000).toISOString() },
 ];
 
 export const SEED_PORTFOLIO: Portfolio = {

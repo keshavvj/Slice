@@ -65,8 +65,66 @@ export default function SplitsPage() {
     const selectedTx = transactions.find(t => t.id === selectedTxId);
     const splitAmountPreview = selectedTx ? (selectedTx.amount / (selectedFriendIds.length + 1)).toFixed(2) : "0.00";
 
+    // Payment Confirmation State
+    const [confirmingSplitId, setConfirmingSplitId] = React.useState<string | null>(null);
+
+    const handleConfirmPayment = async () => {
+        if (!confirmingSplitId) return;
+        const req = splitRequests.find(r => r.id === confirmingSplitId);
+        if (!req) return;
+
+        const friend = friends.find(f => f.id === req.requesterId); // The person who requested (I owe them)
+        if (!friend) {
+            // If friend not found (e.g. unknown requester), we can still mark paid locally but can't send money via Nessie easily without ID.
+            // Fallback: just mark paid.
+            markSplitPaid(req.id);
+            setConfirmingSplitId(null);
+            return;
+        }
+
+        // Logic: Send Money -> Mark Paid
+        try {
+            await useStore.getState().sendMoney(friend.id, req.amountOwed, `Paying split for ${req.transactionId}`);
+            markSplitPaid(req.id);
+            alert(`Paid $${req.amountOwed.toFixed(2)} to ${friend.name}!`);
+        } catch (error) {
+            console.error(error);
+            alert("Failed to send payment.");
+        }
+
+        setConfirmingSplitId(null);
+    };
+
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
+            {/* Payment Confirmation Dialog */}
+            <Dialog open={!!confirmingSplitId} onOpenChange={(open) => !open && setConfirmingSplitId(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Confirm Payment</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to pay this split request?
+                        </DialogDescription>
+                    </DialogHeader>
+                    {(() => {
+                        const req = splitRequests.find(r => r.id === confirmingSplitId);
+                        if (!req) return null;
+                        const friend = friends.find(f => f.id === req.requesterId);
+                        return (
+                            <div className="py-4 text-center">
+                                <div className="text-sm text-muted-foreground mb-1">Paying</div>
+                                <div className="text-2xl font-bold text-primary mb-2">${req.amountOwed.toFixed(2)}</div>
+                                <div className="text-sm text-muted-foreground">to <span className="font-semibold text-foreground">{friend?.name || 'Friend'}</span></div>
+                            </div>
+                        );
+                    })()}
+                    <DialogFooter className="flex gap-2 sm:justify-center">
+                        <Button variant="outline" onClick={() => setConfirmingSplitId(null)}>Cancel</Button>
+                        <Button onClick={handleConfirmPayment} className="bg-green-600 hover:bg-green-700">Yes, Pay Now</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-black tracking-tight">Split Requests</h1>
@@ -168,23 +226,43 @@ export default function SplitsPage() {
                         </div>
                     ) : (
                         splitRequests.map(req => {
-                            const friend = friends.find(f => f.id === req.friendId);
-                            const isIncoming = req.friendId === user.id; // If I am the friend, I owe money (incoming req)
+                            // 1. Identify relationship
+                            const isIncoming = req.friendId === user.id; // I owe
+                            // const isOutgoing = req.requesterId === user.id; // They owe (implied if not incoming)
+
+                            // 2. Determine Display Friend
+                            // If isIncoming (I owe requester), we need to show the Requester's name.
+                            // If isOutgoing (Friend owes me), we show Friend's name.
+
+                            let displayFriend = friends.find(f => f.id === (isIncoming ? req.requesterId : req.friendId));
+
+                            // Fallback if not found (e.g. requester not in friend list?)
+                            const displayName = displayFriend?.name || (isIncoming ? 'Someone' : 'Unknown');
+                            const displayInitials = displayFriend?.avatarInitials || '?';
 
                             return (
                                 <Card key={req.id} className="group hover:border-primary/50 transition-colors">
                                     <CardContent className="p-4 flex items-center justify-between">
                                         <div className="flex items-center gap-4">
                                             <Avatar className="h-10 w-10 border">
-                                                <AvatarFallback>{friend?.avatarInitials || '?'}</AvatarFallback>
+                                                <AvatarFallback>{displayInitials}</AvatarFallback>
                                             </Avatar>
                                             <div>
                                                 <div className="font-semibold flex items-center gap-2">
-                                                    {friend?.name || 'Unknown'}
+                                                    {displayName}
                                                     {req.status === 'paid' && <Badge variant="secondary" className="text-[10px] h-5 px-1 bg-green-100 text-green-700">PAID</Badge>}
                                                 </div>
-                                                <div className="text-xs text-muted-foreground">
-                                                    {new Date(req.createdAt).toLocaleDateString()}
+                                                <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                                    {isIncoming ? (
+                                                        <span className="text-red-500 font-medium flex items-center">
+                                                            You owe this
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-green-600 font-medium flex items-center">
+                                                            Owes you
+                                                        </span>
+                                                    )}
+                                                    <span>• {new Date(req.createdAt).toLocaleDateString()}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -195,7 +273,7 @@ export default function SplitsPage() {
                                             {req.status === 'pending' && (
                                                 <div className="mt-1">
                                                     {isIncoming ? (
-                                                        <Button size="sm" onClick={() => markSplitPaid(req.id)}>Pay Now</Button>
+                                                        <Button size="sm" onClick={() => setConfirmingSplitId(req.id)}>Pay Now</Button>
                                                     ) : (
                                                         <span className="text-xs text-orange-500 font-medium flex items-center justify-end gap-1">
                                                             <Clock className="w-3 h-3" /> Pending

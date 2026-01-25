@@ -390,6 +390,25 @@ export const useStore = create<AppState>()(
                         return req;
                     })
                 }));
+
+                // 3. Create Local Transaction Record
+                const newTx: Transaction = {
+                    id: `tx_settle_${Date.now()}`,
+                    date: new Date().toISOString(),
+                    merchant_name: `Paid ${friend?.name || 'Friend'}`,
+                    category: 'Transfer',
+                    amount: roundedAmount,
+                    status: "posted",
+                    accountId: state.selectedAccountId || "demo_account"
+                };
+
+                set((state) => ({
+                    user: {
+                        ...state.user,
+                        checkingBalance: state.user.checkingBalance - roundedAmount
+                    },
+                    transactions: [newTx, ...state.transactions]
+                }));
             },
 
             sendMoney: async (friendId: string, amount: number, note: string) => {
