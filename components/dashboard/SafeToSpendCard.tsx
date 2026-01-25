@@ -65,17 +65,24 @@ export function SafeToSpendCard() {
                 </div>
             </CardHeader>
             <CardContent>
-                <Progress value={percent} className="h-3" />
+                <Progress
+                    value={percent}
+                    className="h-3"
+                    // Dynamic color indicator
+                    indicatorClassName={
+                        percent > 50 ? "bg-green-500" : percent > 20 ? "bg-yellow-500" : "bg-red-500"
+                    }
+                />
                 <div className="mt-4 flex justify-between text-xs text-muted-foreground">
-                    <div>
+                    <div className="text-center">
                         <span className="block font-semibold text-foreground">-${breakdown.billsTotal.toFixed(0)}</span>
-                        Upcoming
+                        Bills (7d)
                     </div>
-                    <div>
+                    <div className="text-center">
                         <span className="block font-semibold text-foreground">-${breakdown.variableSpend.toFixed(0)}</span>
-                        Essentials (7d)
+                        Living (7d)
                     </div>
-                    <div>
+                    <div className="text-center">
                         <span className="block font-semibold text-foreground">-${user.safetyThreshold}</span>
                         Buffer
                     </div>

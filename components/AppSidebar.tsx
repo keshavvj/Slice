@@ -26,14 +26,20 @@ const NAV_ITEMS = [
     { label: 'Settings', href: '/settings', icon: Settings },
 ];
 
+import { DASHBOARD_LOGO_DATA_URI } from "@/lib/dashboard-logo-data";
+
 export function AppSidebar() {
     const pathname = usePathname();
     const { data: session } = useSession();
 
     return (
         <div className="flex h-screen w-64 flex-col border-r bg-sidebar text-sidebar-foreground">
-            <div className="flex h-16 items-center border-b px-6">
-                <span className="text-xl font-bold tracking-tight text-primary">Slice</span>
+            <div className="flex h-32 items-center border-b px-6">
+                <img
+                    src={DASHBOARD_LOGO_DATA_URI}
+                    alt="Slice"
+                    className="h-24 w-auto object-contain"
+                />
             </div>
             <div className="flex-1 overflow-y-auto py-4">
                 <nav className="space-y-1 px-3">

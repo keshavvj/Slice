@@ -7,6 +7,7 @@ import { useStore } from '@/lib/store';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { PortfolioCard } from '@/components/dashboard/PortfolioCard';
+import { AssetAllocation } from '@/components/dashboard/AssetAllocation';
 import { TrendingUp, PieChart, ArrowUpRight, DollarSign } from 'lucide-react';
 
 export default function InvestingPage() {
@@ -33,13 +34,15 @@ export default function InvestingPage() {
                 </Button>
             </div>
 
+
+
             <div className="grid gap-6 lg:grid-cols-3">
                 {/* Main Portfolio Graphic */}
                 <div className="lg:col-span-2 space-y-6">
                     <PortfolioCard />
 
                     <div className="grid gap-4 md:grid-cols-2">
-                        <Card>
+                        <Card className="h-full">
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                 <CardTitle className="text-sm font-medium">Total Returns</CardTitle>
                                 <TrendingUp className="h-4 w-4 text-green-500" />
@@ -47,18 +50,14 @@ export default function InvestingPage() {
                             <CardContent>
                                 <div className="text-2xl font-bold text-green-600">+12.5%</div>
                                 <p className="text-xs text-muted-foreground">All time</p>
+                                <div className="mt-4 h-2 w-full bg-green-100 rounded-full overflow-hidden">
+                                    <div className="h-full bg-green-500 w-[70%]" />
+                                </div>
                             </CardContent>
                         </Card>
-                        <Card>
-                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">Dividends</CardTitle>
-                                <PieChart className="h-4 w-4 text-muted-foreground" />
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold">$34.20</div>
-                                <p className="text-xs text-muted-foreground">Reinvested automatically</p>
-                            </CardContent>
-                        </Card>
+
+                        {/* Swapped existing card for new Asset Allocation Chart */}
+                        <AssetAllocation />
                     </div>
                 </div>
 

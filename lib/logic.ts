@@ -28,8 +28,8 @@ export function calculateSafeToSpend(
     });
 
     // 3. Variable Spend Forecasting (Food, Gas, etc.)
-    // Estimate daily burn rate. Updated to $50/day to be safe for diverse city living.
-    const estimatedDailyBurn = 50;
+    // Estimate daily burn rate. Reduced to $25/day to be more lenient.
+    const estimatedDailyBurn = 25;
     const survivalVariableSpend = estimatedDailyBurn * daysToPayday;
 
     // 4. Deduction
