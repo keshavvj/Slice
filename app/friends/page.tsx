@@ -14,12 +14,19 @@ import { Label } from '@/components/ui/label';
 
 export default function FriendsPage() {
     const { friends, splitRequests, transactions, addFriend, removeFriend } = useStore();
+    // Add Friend Dialog State
     const [isDialogOpen, setIsDialogOpen] = React.useState(false);
-    const [selectedFriend, setSelectedFriend] = React.useState<any>(null);
     const [newFriendName, setNewFriendName] = React.useState("");
     const [newFriendEmail, setNewFriendEmail] = React.useState("");
     const [newFriendPhone, setNewFriendPhone] = React.useState("");
+
+    // View/Send Money State
+    const [selectedFriend, setSelectedFriend] = React.useState<any>(null);
+    const [isSendMoneyOpen, setIsSendMoneyOpen] = React.useState(false);
+    const [sendAmount, setSendAmount] = React.useState("");
+    const [sendNote, setSendNote] = React.useState("");
     const [searchQuery, setSearchQuery] = React.useState("");
+
 
     const handleAddFriend = () => {
         if (!newFriendName) return;
@@ -61,6 +68,20 @@ export default function FriendsPage() {
             const net = owedByFriend - owedToFriend;
             return { ...f, net, owedByFriend, owedToFriend };
         });
+
+    const handleSendMoney = async () => {
+        if (!selectedFriend || !sendAmount) return;
+        const amount = parseFloat(sendAmount);
+        if (isNaN(amount) || amount <= 0) return;
+
+        await useStore.getState().sendMoney(selectedFriend.id, amount, sendNote);
+
+        setIsSendMoneyOpen(false);
+        setSendAmount("");
+        setSendNote("");
+        setSelectedFriend(null); // Optional: close friend view or keep open? kept open to see history update if eager
+        alert(`Sent $${amount.toFixed(2)} to ${selectedFriend.name}`);
+    };
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
@@ -116,6 +137,45 @@ export default function FriendsPage() {
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
+
+                <Dialog open={isSendMoneyOpen} onOpenChange={setIsSendMoneyOpen}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Send Money to {selectedFriend?.name}</DialogTitle>
+                            <DialogDescription>
+                                Instant transfer from your checking account.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="amount">Amount</Label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-2.5 text-muted-foreground">$</span>
+                                    <Input
+                                        id="amount"
+                                        type="number"
+                                        placeholder="0.00"
+                                        className="pl-7"
+                                        value={sendAmount}
+                                        onChange={(e) => setSendAmount(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="note">Note</Label>
+                                <Input
+                                    id="note"
+                                    placeholder="Pizza, Rent, etc."
+                                    value={sendNote}
+                                    onChange={(e) => setSendNote(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button onClick={handleSendMoney}>Send ${sendAmount || '0.00'}</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </div>
 
             <div className="flex items-center gap-4 bg-background p-1 rounded-xl border max-w-md">
@@ -128,7 +188,7 @@ export default function FriendsPage() {
                 />
             </div>
 
-            <Dialog open={!!selectedFriend} onOpenChange={(open) => !open && setSelectedFriend(null)}>
+            <Dialog open={!!selectedFriend && !isSendMoneyOpen} onOpenChange={(open) => !open && setSelectedFriend(null)}>
                 <DialogContent className="max-w-md">
                     <DialogHeader>
                         <DialogTitle>History with {selectedFriend?.name}</DialogTitle>
@@ -165,6 +225,14 @@ export default function FriendsPage() {
                             <p className="text-center text-muted-foreground py-4">No history yet.</p>
                         )}
                     </div>
+                    <DialogFooter>
+                        <Button
+                            className="w-full"
+                            onClick={() => setIsSendMoneyOpen(true)}
+                        >
+                            Send $
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
 
@@ -212,10 +280,21 @@ export default function FriendsPage() {
                                         {friend.net >= 0 ? '+' : '-'}${Math.abs(friend.net).toFixed(2)}
                                     </span>
                                 </div>
-                                <div className="pt-2">
+                                <div className="pt-2 flex gap-2">
+                                    <Button
+                                        className="flex-1"
+                                        variant="outline"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedFriend(friend);
+                                            setIsSendMoneyOpen(true);
+                                        }}
+                                    >
+                                        Send $
+                                    </Button>
                                     {friend.net < 0 && (
                                         <Button
-                                            className="w-full bg-red-600 hover:bg-red-700 text-white"
+                                            className="flex-1 bg-red-600 hover:bg-red-700 text-white"
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 const amount = Math.abs(friend.net);
@@ -226,18 +305,18 @@ export default function FriendsPage() {
                                                 }
                                             }}
                                         >
-                                            Settle Up
+                                            Settle
                                         </Button>
                                     )}
                                     {friend.net > 0 && (
                                         <Button
-                                            className="w-full bg-green-600 hover:bg-green-700 text-white"
+                                            className="flex-1 bg-green-600 hover:bg-green-700 text-white"
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 alert(`Request sent to ${friend.name} for $${friend.net.toFixed(2)}!`);
                                             }}
                                         >
-                                            Request Payment
+                                            Request
                                         </Button>
                                     )}
                                 </div>

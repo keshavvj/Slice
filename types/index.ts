@@ -118,5 +118,7 @@ export type AppState = {
 
   syncNessieData: (force?: boolean) => Promise<void>;
   simulateNessieTransaction: (merchant: string, amount: number) => void;
+  settleSplit: (friendId: string, amount: number) => Promise<void>;
+  sendMoney: (friendId: string, amount: number, note: string) => Promise<void>;
   resetAll: () => void;
 };

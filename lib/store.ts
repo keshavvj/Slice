@@ -392,6 +392,47 @@ export const useStore = create<AppState>()(
                 }));
             },
 
+            sendMoney: async (friendId: string, amount: number, note: string) => {
+                const state = get();
+                const friend = state.friends.find(f => f.id === friendId);
+                const roundedAmount = Number(amount.toFixed(2));
+
+                // 1. Nessie Transfer
+                if (state.nessieConnected && state.selectedAccountId && friend?.nessieAccountId) {
+                    try {
+                        await nessieClient.createTransfer(state.selectedAccountId, {
+                            medium: "balance",
+                            payee_id: friend.nessieAccountId,
+                            amount: roundedAmount,
+                            description: note || `Sent to ${friend.name}`
+                        });
+                        // Re-sync
+                        setTimeout(() => get().syncNessieData(true), 1000);
+                    } catch (e) {
+                        console.error("Send Money API call failed", e);
+                    }
+                }
+
+                // 2. Local Update (Optimistic Transaction)
+                const newTx: Transaction = {
+                    id: `tx_sent_${Date.now()}`,
+                    date: new Date().toISOString(),
+                    merchant_name: `Sent to ${friend?.name || 'Friend'}`,
+                    category: 'Transfer',
+                    amount: roundedAmount,
+                    status: "posted",
+                    accountId: state.selectedAccountId || "demo_account"
+                };
+
+                set((state) => ({
+                    user: {
+                        ...state.user,
+                        checkingBalance: state.user.checkingBalance - roundedAmount
+                    },
+                    transactions: [newTx, ...state.transactions]
+                }));
+            },
+
             resetAll: () => {
                 localStorage.clear();
                 window.location.reload();
