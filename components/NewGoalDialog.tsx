@@ -15,20 +15,28 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useStore } from '@/lib/store';
 import { SharedGoal } from '@/types';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus } from 'lucide-react';
+import { Check, Plus } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Card } from '@/components/ui/card';
 
 export function NewGoalDialog() {
     const { addGoal, friends } = useStore();
     const [open, setOpen] = React.useState(false);
     const [name, setName] = React.useState('');
     const [targetAmount, setTargetAmount] = React.useState('');
-    const [selectedFriendId, setSelectedFriendId] = React.useState<string>('');
+    const [selectedFriendIds, setSelectedFriendIds] = React.useState<string[]>([]);
+
+    const toggleFriend = (id: string) => {
+        setSelectedFriendIds(prev =>
+            prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+        );
+    };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
-        const friend = friends.find(f => f.id === selectedFriendId);
+        const selectedFriends = friends.filter(f => selectedFriendIds.includes(f.id));
 
         const newGoal: SharedGoal = {
             id: `goal_${Date.now()}`,
@@ -36,15 +44,17 @@ export function NewGoalDialog() {
             targetAmount: Number(targetAmount),
             currentAmount: 0,
             weeklyContribution: 0,
-            members: friend ? [friend] : [],
+            members: selectedFriends,
             contributions: []
         };
 
         addGoal(newGoal);
         setOpen(false);
         setName('');
+        setOpen(false);
+        setName('');
         setTargetAmount('');
-        setSelectedFriendId('');
+        setSelectedFriendIds([]);
     };
 
     return (
@@ -91,22 +101,39 @@ export function NewGoalDialog() {
                                 min="1"
                             />
                         </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="friends" className="text-right">
+                        <div className="grid grid-cols-4 items-start gap-4">
+                            <Label className="text-right pt-2">
                                 Invite
                             </Label>
-                            <Select onValueChange={setSelectedFriendId} value={selectedFriendId}>
-                                <SelectTrigger className="w-[180px] col-span-3 w-full">
-                                    <SelectValue placeholder="Select a friend" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {friends.map(friend => (
-                                        <SelectItem key={friend.id} value={friend.id}>
-                                            {friend.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <div className="col-span-3 space-y-2">
+                                <div className="max-h-[200px] overflow-y-auto border rounded-md p-2 space-y-1">
+                                    {friends.length === 0 ? (
+                                        <p className="text-sm text-muted-foreground p-2">No friends yet. Add some in the Friends tab!</p>
+                                    ) : (
+                                        friends.map(friend => {
+                                            const isSelected = selectedFriendIds.includes(friend.id);
+                                            return (
+                                                <div
+                                                    key={friend.id}
+                                                    onClick={() => toggleFriend(friend.id)}
+                                                    className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-primary/10 border-primary/20' : 'hover:bg-muted'}`}
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <Avatar className="h-8 w-8 border">
+                                                            <AvatarFallback className="text-xs">{friend.avatarInitials}</AvatarFallback>
+                                                        </Avatar>
+                                                        <span className="text-sm font-medium">{friend.name}</span>
+                                                    </div>
+                                                    {isSelected && <Check className="h-4 w-4 text-primary" />}
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                                <p className="text-xs text-muted-foreground text-right">
+                                    {selectedFriendIds.length} friend{selectedFriendIds.length !== 1 && 's'} selected
+                                </p>
+                            </div>
                         </div>
                     </div>
                     <DialogFooter>

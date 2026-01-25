@@ -97,21 +97,42 @@ export const useStore = create<AppState>()(
                 goals: [...state.goals, goal]
             })),
 
-            contributeToGoal: (goalId, amount) => set((state) => ({
-                goals: state.goals.map(g => {
-                    if (g.id !== goalId) return g;
-                    const newContribution = {
-                        date: new Date().toISOString(),
-                        memberId: state.user.id,
-                        amount: amount
-                    };
-                    return {
-                        ...g,
-                        currentAmount: g.currentAmount + amount,
-                        contributions: [newContribution, ...g.contributions]
-                    };
-                }),
-            })),
+            contributeToGoal: (goalId, amount) => {
+                const state = get();
+                // 1. Create Transaction
+                const newTx: Transaction = {
+                    id: `tx_goal_${Date.now()}`,
+                    date: new Date().toISOString(),
+                    merchant_name: "Goal Contribution",
+                    category: "Savings",
+                    amount: amount,
+                    status: "posted",
+                    accountId: state.selectedAccountId || "demo_account"
+                };
+
+                set((state) => ({
+                    // 2. Deduct Balance & Add Transaction
+                    user: {
+                        ...state.user,
+                        checkingBalance: state.user.checkingBalance - amount
+                    },
+                    transactions: [newTx, ...state.transactions],
+                    // 3. Update Goal
+                    goals: state.goals.map(g => {
+                        if (g.id !== goalId) return g;
+                        const newContribution = {
+                            date: new Date().toISOString(),
+                            memberId: state.user.id,
+                            amount: amount
+                        };
+                        return {
+                            ...g,
+                            currentAmount: g.currentAmount + amount,
+                            contributions: [newContribution, ...g.contributions]
+                        };
+                    }),
+                }));
+            },
 
             addFriend: (friend) => set((state) => ({
                 friends: [...state.friends, friend]
