@@ -13,8 +13,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 
 export default function FriendsPage() {
-    const { friends, splitRequests, addFriend, removeFriend } = useStore();
+    const { friends, splitRequests, transactions, addFriend, removeFriend } = useStore();
     const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+    const [selectedFriend, setSelectedFriend] = React.useState<any>(null);
     const [newFriendName, setNewFriendName] = React.useState("");
     const [newFriendEmail, setNewFriendEmail] = React.useState("");
     const [newFriendPhone, setNewFriendPhone] = React.useState("");
@@ -127,9 +128,49 @@ export default function FriendsPage() {
                 />
             </div>
 
+            <Dialog open={!!selectedFriend} onOpenChange={(open) => !open && setSelectedFriend(null)}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>History with {selectedFriend?.name}</DialogTitle>
+                        <DialogDescription>Past transactions and splits.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+                        {selectedFriend && splitRequests
+                            .filter(r => r.friendId === selectedFriend.id || r.requesterId === selectedFriend.id)
+                            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                            .map(req => {
+                                const tx = transactions.find(t => t.id === req.transactionId);
+                                const isOwedByFriend = req.friendId === selectedFriend.id;
+                                const isPaid = req.status === 'paid';
+
+                                return (
+                                    <div key={req.id} className="flex justify-between items-center border-b pb-2 last:border-0">
+                                        <div>
+                                            <div className="font-medium">{tx?.merchant_name || 'Unknown Transaction'}</div>
+                                            <div className="text-xs text-muted-foreground">{new Date(req.createdAt).toLocaleDateString()}</div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className={`font-bold ${isPaid ? 'text-muted-foreground line-through' : (isOwedByFriend ? 'text-green-600' : 'text-red-600')}`}>
+                                                {isOwedByFriend ? '+' : '-'}${req.amountOwed.toFixed(2)}
+                                            </div>
+                                            <div className="text-xs text-muted-foreground">
+                                                {isPaid ? 'Settled' : (isOwedByFriend ? 'They owe' : 'You owe')}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        }
+                        {selectedFriend && splitRequests.filter(r => r.friendId === selectedFriend.id || r.requesterId === selectedFriend.id).length === 0 && (
+                            <p className="text-center text-muted-foreground py-4">No history yet.</p>
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {balances.map(friend => (
-                    <Card key={friend.id} className="group hover:border-primary/50 transition-all hover:shadow-md cursor-pointer">
+                    <Card key={friend.id} className="group hover:border-primary/50 transition-all hover:shadow-md cursor-pointer" onClick={() => setSelectedFriend(friend)}>
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <Avatar className="h-12 w-12 border-2 border-background shadow-sm">
                                 <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-purple-400 text-white font-bold">
