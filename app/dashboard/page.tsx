@@ -11,10 +11,16 @@ import { Button } from '@/components/ui/button';
 import { Plus, Send, Zap, Split, ArrowUpRight } from 'lucide-react';
 import { useSession } from "next-auth/react";
 import Link from 'next/link';
+import { useEffect } from 'react';
 
 export default function Dashboard() {
-    const { user, transactions, setTransactions, addTransaction, nessieConnected } = useStore();
+    const { user, transactions, setTransactions, addTransaction, nessieConnected, syncNessieData, portfolio } = useStore();
     const { data: session } = useSession();
+
+    useEffect(() => {
+        // Attempt to sync on mount
+        syncNessieData();
+    }, []);
 
     const handleSimulateRide = () => {
         addTransaction({
@@ -33,21 +39,23 @@ export default function Dashboard() {
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
             {/* Data Source Banner */}
-            <div className={`w-full py-2 px-4 text-center text-xs font-bold uppercase tracking-wider rounded border ${nessieConnected
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                    : 'bg-amber-50 text-amber-700 border-amber-200'
-                }`}>
-                {nessieConnected ? '✓ Using Live Nessie Data' : '⚠ Using Demo Data'}
-            </div>
+            {!nessieConnected && (
+                <div className="w-full py-2 px-4 text-center text-xs font-bold uppercase tracking-wider rounded border bg-amber-50 text-amber-700 border-amber-200">
+                    ⚠ Using Demo Data
+                </div>
+            )}
 
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-4xl font-black tracking-tighter">
-                        Good afternoon, {session?.user?.name?.split(' ')[0] || 'Friend'}
-                    </h1>
-                    <p className="text-muted-foreground mt-1 text-lg">
-                        Here's what's happening with your money.
+                    <h2 className="text-xl font-medium text-muted-foreground">
+                        Total Balance
+                    </h2>
+                    <div className="text-5xl font-black tracking-tighter mt-1">
+                        ${(user.checkingBalance + portfolio.balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <p className="text-muted-foreground mt-2 text-sm">
+                        Welcome back, {session?.user?.name?.split(' ')[0] || 'Friend'}
                     </p>
                 </div>
                 <div className="flex gap-2">

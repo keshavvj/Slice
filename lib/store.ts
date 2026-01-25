@@ -28,16 +28,22 @@ export const useStore = create<AppState>()(
             setTransactions: (txs) => set({ transactions: txs }),
 
             addTransaction: (tx) => {
-                set((state) => {
-                    // Check for roundups
-                    if (state.user.roundupsEnabled) {
-                        const roundup = calculateRoundup(tx.amount);
-                        if (roundup > 0) {
-                            get().performInvestment(roundup, "roundup", `Roundup from ${tx.merchant_name}`);
-                        }
+                const state = get();
+                const roundup = state.user.roundupsEnabled ? calculateRoundup(tx.amount) : 0;
+
+                // 1. Process Transaction (deduct amount)
+                set((s) => ({
+                    transactions: [tx, ...s.transactions],
+                    user: {
+                        ...s.user,
+                        checkingBalance: s.user.checkingBalance - tx.amount
                     }
-                    return { transactions: [tx, ...state.transactions] };
-                });
+                }));
+
+                // 2. Process Roundup (if any) - separate update to ensure state consistency
+                if (roundup > 0) {
+                    get().performInvestment(roundup, "roundup", `Roundup from ${tx.merchant_name}`);
+                }
             },
 
             createSplitRequest: (req) => set((state) => ({
@@ -192,7 +198,7 @@ export const useStore = create<AppState>()(
                         lastFetchedAt: new Date().toISOString(),
                         lastFetchSamples: debugSamples,
                         transactions: mappedTransactions,
-                        bills: mappedBills.length > 0 ? mappedBills : state.bills,
+                        bills: mappedBills, // Strict: only use Nessie bills if connected
                         user: {
                             ...state.user,
                             checkingBalance: checkingAccount.balance,
