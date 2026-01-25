@@ -113,6 +113,14 @@ export const useStore = create<AppState>()(
                 }),
             })),
 
+            addFriend: (friend) => set((state) => ({
+                friends: [...state.friends, friend]
+            })),
+
+            removeFriend: (id) => set((state) => ({
+                friends: state.friends.filter(f => f.id !== id)
+            })),
+
             syncNessieData: async (force = false) => {
                 const state = get();
                 // Cache check: if not forced and we have recent data (e.g. < 10 mins) and txs are not empty

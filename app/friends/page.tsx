@@ -6,26 +6,58 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { useStore } from '@/lib/store';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Plus, Search, MoreHorizontal } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 
-export default function FriendsPage() {
-    const { friends, splitRequests } = useStore();
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 
-    // Calculate net balances
-    const balances = friends.map(f => {
-        const txs = splitRequests.filter(r => r.friendId === f.id || r.requesterId === f.id);
-        let net = 0;
-        txs.forEach(r => {
-            if (r.status === 'paid') return;
-            if (r.friendId === f.id) {
-                net += r.amountOwed;
-            } else {
-                net -= r.amountOwed;
-            }
+export default function FriendsPage() {
+    const { friends, splitRequests, addFriend, removeFriend } = useStore();
+    const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+    const [newFriendName, setNewFriendName] = React.useState("");
+    const [newFriendEmail, setNewFriendEmail] = React.useState("");
+    const [newFriendPhone, setNewFriendPhone] = React.useState("");
+    const [searchQuery, setSearchQuery] = React.useState("");
+
+    const handleAddFriend = () => {
+        if (!newFriendName) return;
+
+        const initials = newFriendName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+
+        addFriend({
+            id: `friend_${Date.now()}`,
+            name: newFriendName,
+            phoneNumber: newFriendPhone,
+            avatarInitials: initials
         });
-        return { ...f, net };
-    });
+
+        setIsDialogOpen(false);
+        setNewFriendName("");
+        setNewFriendEmail("");
+        setNewFriendPhone("");
+    };
+
+    // Calculate net balances and filter
+    const balances = friends
+        .filter(f => {
+            if (!searchQuery) return true;
+            const q = searchQuery.toLowerCase();
+            return f.name.toLowerCase().includes(q) || (f.phoneNumber && f.phoneNumber.includes(q));
+        })
+        .map(f => {
+            const txs = splitRequests.filter(r => r.friendId === f.id || r.requesterId === f.id);
+            let net = 0;
+            txs.forEach(r => {
+                if (r.status === 'paid') return;
+                if (r.friendId === f.id) {
+                    net += r.amountOwed;
+                } else {
+                    net -= r.amountOwed;
+                }
+            });
+            return { ...f, net };
+        });
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
@@ -34,14 +66,63 @@ export default function FriendsPage() {
                     <h1 className="text-3xl font-black tracking-tight">Friends</h1>
                     <p className="text-muted-foreground">Keep track of your squad.</p>
                 </div>
-                <Button size="lg" className="rounded-full shadow-lg">
-                    <Plus className="mr-2 h-4 w-4" /> Add Friend
-                </Button>
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                    <DialogTrigger asChild>
+                        <Button size="lg" className="rounded-full shadow-lg">
+                            <Plus className="mr-2 h-4 w-4" /> Add Friend
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Add a Friend</DialogTitle>
+                            <DialogDescription>
+                                Add someone to your Slice network to split bills and send cash.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="name">Name</Label>
+                                <Input
+                                    id="name"
+                                    placeholder="e.g. Sarah Jones"
+                                    value={newFriendName}
+                                    onChange={(e) => setNewFriendName(e.target.value)}
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="email">Email (Optional)</Label>
+                                <Input
+                                    id="email"
+                                    placeholder="sarah@example.com"
+                                    value={newFriendEmail}
+                                    onChange={(e) => setNewFriendEmail(e.target.value)}
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="phone">Phone Number (Optional)</Label>
+                                <Input
+                                    id="phone"
+                                    placeholder="555-0123"
+                                    value={newFriendPhone}
+                                    onChange={(e) => setNewFriendPhone(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button onClick={handleAddFriend}>Add Friend</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </div>
 
             <div className="flex items-center gap-4 bg-background p-1 rounded-xl border max-w-md">
                 <Search className="w-5 h-5 ml-3 text-muted-foreground" />
-                <Input placeholder="Search friends by name or phone..." className="border-0 focus-visible:ring-0" />
+                <Input
+                    placeholder="Search friends by name or phone..."
+                    className="border-0 focus-visible:ring-0"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                />
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -53,8 +134,18 @@ export default function FriendsPage() {
                                     {friend.avatarInitials}
                                 </AvatarFallback>
                             </Avatar>
-                            <Button variant="ghost" size="icon" className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
-                                <MoreHorizontal className="w-5 h-5" />
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:text-destructive hover:bg-destructive/10"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (confirm(`Are you sure you want to remove ${friend.name}?`)) {
+                                        removeFriend(friend.id);
+                                    }
+                                }}
+                            >
+                                <Trash2 className="w-5 h-5" />
                             </Button>
                         </CardHeader>
                         <CardContent>
@@ -75,12 +166,15 @@ export default function FriendsPage() {
                 ))}
 
                 {/* Add Friend Card Placeholder */}
-                <Card className="border-dashed flex flex-col items-center justify-center text-center p-6 text-muted-foreground hover:bg-muted/50 cursor-pointer transition-colors h-full min-h-[180px]">
+                <Card
+                    className="border-dashed flex flex-col items-center justify-center text-center p-6 text-muted-foreground hover:bg-muted/50 cursor-pointer transition-colors h-full min-h-[180px]"
+                    onClick={() => setIsDialogOpen(true)}
+                >
                     <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
                         <Plus className="w-6 h-6" />
                     </div>
                     <div className="font-medium">Invite a new friend</div>
-                    <div className="text-xs mt-1">Send an invite link via iMessage</div>
+                    <div className="text-xs mt-1">Add them to your network</div>
                 </Card>
             </div>
         </div>

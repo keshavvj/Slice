@@ -34,6 +34,7 @@ export interface Bill {
 export interface Friend {
   id: string;
   name: string;
+  phoneNumber?: string;
   avatarInitials: string;
 }
 
@@ -86,6 +87,7 @@ export type AppState = {
   user: User;
   transactions: Transaction[];
   upcomingBills: Bill[];
+  bills: Bill[]; // Added missing property
   friends: Friend[];
   splitRequests: SplitRequest[];
   splitRules: SplitRule[];
@@ -110,6 +112,8 @@ export type AppState = {
   checkAutoSplits: () => void;
   addGoal: (goal: SharedGoal) => void;
   contributeToGoal: (goalId: string, amount: number) => void;
+  addFriend: (friend: Friend) => void;
+  removeFriend: (id: string) => void;
 
   syncNessieData: (force?: boolean) => Promise<void>;
   simulateNessieTransaction: (merchant: string, amount: number) => void;
