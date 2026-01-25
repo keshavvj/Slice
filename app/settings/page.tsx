@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useSession } from "next-auth/react";
 import { useStore } from '@/lib/store';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,6 +11,13 @@ export default function SettingsPage() {
     const userStore = useStore();
     const { user, updateUserParams, nessieConnected, selectedCustomerId, selectedAccountId, lastFetchedAt, syncNessieData, resetAll } = userStore;
     const [isSyncing, setIsSyncing] = React.useState(false);
+    const { data: session } = useSession();
+
+    React.useEffect(() => {
+        if (session?.user?.name && user.name === "Jordan Lee") {
+            updateUserParams({ name: session.user.name });
+        }
+    }, [session, user.name, updateUserParams]);
 
     const handleSync = async () => {
         setIsSyncing(true);
