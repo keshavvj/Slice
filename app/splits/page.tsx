@@ -9,10 +9,19 @@ import { detectSmartSplits } from '@/lib/logic';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Plus, Check, Clock, User as UserIcon } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 
 export default function SplitsPage() {
     const { transactions, splitRequests, friends, createSplitRequest, markSplitPaid, user } = useStore();
     const [suggestions, setSuggestions] = React.useState<string[]>([]);
+
+    // Dialog State
+    const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+    const [selectedTxId, setSelectedTxId] = React.useState<string>("");
+    const [selectedFriendIds, setSelectedFriendIds] = React.useState<string[]>([]);
 
     React.useEffect(() => {
         const detected = detectSmartSplits(transactions, splitRequests);
@@ -20,20 +29,41 @@ export default function SplitsPage() {
     }, [transactions, splitRequests]);
 
     const handleCreateSplit = () => {
-        const tx = transactions[0]; // Logic would pick a specific transaction
+        if (!selectedTxId || selectedFriendIds.length === 0) return;
+
+        const tx = transactions.find(t => t.id === selectedTxId);
         if (!tx) return;
 
-        createSplitRequest({
-            id: `sr_${Date.now()}`,
-            transactionId: tx.id,
-            requesterId: user.id,
-            friendId: friends[0]?.id || 'unknown',
-            totalAmount: tx.amount,
-            amountOwed: tx.amount / 2,
-            status: 'pending',
-            createdAt: new Date().toISOString()
+        const splitAmount = tx.amount / (selectedFriendIds.length + 1);
+
+        selectedFriendIds.forEach(friendId => {
+            createSplitRequest({
+                id: `sr_${Date.now()}_${Math.random()}`,
+                transactionId: tx.id,
+                requesterId: user.id,
+                friendId: friendId,
+                totalAmount: tx.amount,
+                amountOwed: Number(splitAmount.toFixed(2)),
+                status: 'pending',
+                createdAt: new Date().toISOString()
+            });
         });
+
+        setIsDialogOpen(false);
+        setSelectedTxId("");
+        setSelectedFriendIds([]);
     };
+
+    const toggleFriend = (id: string) => {
+        setSelectedFriendIds(prev =>
+            prev.includes(id)
+                ? prev.filter(fid => fid !== id)
+                : [...prev, id]
+        );
+    };
+
+    const selectedTx = transactions.find(t => t.id === selectedTxId);
+    const splitAmountPreview = selectedTx ? (selectedTx.amount / (selectedFriendIds.length + 1)).toFixed(2) : "0.00";
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
@@ -42,9 +72,74 @@ export default function SplitsPage() {
                     <h1 className="text-3xl font-black tracking-tight">Split Requests</h1>
                     <p className="text-muted-foreground">Manage bills and shared expenses.</p>
                 </div>
-                <Button onClick={handleCreateSplit} size="lg" className="rounded-full shadow-lg">
-                    <Plus className="mr-2 h-4 w-4" /> New Split
-                </Button>
+
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                    <DialogTrigger asChild>
+                        <Button size="lg" className="rounded-full shadow-lg">
+                            <Plus className="mr-2 h-4 w-4" /> New Split
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[425px]">
+                        <DialogHeader>
+                            <DialogTitle>Create a Split Request</DialogTitle>
+                            <DialogDescription>
+                                Select a transaction and friends to split it with.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                            <div className="grid gap-2">
+                                <Label>Transaction</Label>
+                                <Select value={selectedTxId} onValueChange={setSelectedTxId}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select transaction to split" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {transactions.slice(0, 10).map(tx => (
+                                            <SelectItem key={tx.id} value={tx.id}>
+                                                {tx.merchant_name} (${tx.amount.toFixed(2)})
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label>Select Friends</Label>
+                                <div className="border rounded-md p-4 space-y-3 max-h-[200px] overflow-y-auto">
+                                    {friends.length === 0 ? (
+                                        <div className="text-sm text-muted-foreground text-center">No friends added yet.</div>
+                                    ) : (
+                                        friends.map(friend => (
+                                            <div key={friend.id} className="flex items-center space-x-2">
+                                                <Checkbox
+                                                    id={`friend-${friend.id}`}
+                                                    checked={selectedFriendIds.includes(friend.id)}
+                                                    onCheckedChange={() => toggleFriend(friend.id)}
+                                                />
+                                                <label
+                                                    htmlFor={`friend-${friend.id}`}
+                                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                                                >
+                                                    {friend.name}
+                                                </label>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+
+                            {selectedTx && selectedFriendIds.length > 0 && (
+                                <div className="bg-muted p-3 rounded-lg text-sm flex justify-between items-center">
+                                    <span>Each person pays:</span>
+                                    <span className="font-bold text-lg text-primary">${splitAmountPreview}</span>
+                                </div>
+                            )}
+                        </div>
+                        <DialogFooter>
+                            <Button onClick={handleCreateSplit} disabled={!selectedTxId || selectedFriendIds.length === 0}>Send Split Request</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </div>
 
             {suggestions.length > 0 && (
@@ -124,18 +219,36 @@ export default function SplitsPage() {
                             <CardDescription>Your net position across all friends.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
-                            <div className="flex items-center justify-between border-b pb-4">
-                                <span className="text-sm">You are owed</span>
-                                <span className="text-green-600 font-bold">$450.00</span>
-                            </div>
-                            <div className="flex items-center justify-between border-b pb-4">
-                                <span className="text-sm">You owe</span>
-                                <span className="text-red-500 font-bold">$12.50</span>
-                            </div>
-                            <div className="flex items-center justify-between pt-2">
-                                <span className="font-semibold">Total Net</span>
-                                <span className="text-green-600 font-black text-xl">+$437.50</span>
-                            </div>
+                            {(() => {
+                                const totalOwedToMe = splitRequests
+                                    .filter(r => r.requesterId === user.id && r.status === 'pending')
+                                    .reduce((sum, r) => sum + r.amountOwed, 0);
+
+                                const totalIOwe = splitRequests
+                                    .filter(r => r.friendId === user.id && r.status === 'pending')
+                                    .reduce((sum, r) => sum + r.amountOwed, 0);
+
+                                const net = totalOwedToMe - totalIOwe;
+
+                                return (
+                                    <>
+                                        <div className="flex items-center justify-between border-b pb-4">
+                                            <span className="text-sm">You are owed</span>
+                                            <span className="text-green-600 font-bold">${totalOwedToMe.toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between border-b pb-4">
+                                            <span className="text-sm">You owe</span>
+                                            <span className="text-red-500 font-bold">${totalIOwe.toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between pt-2">
+                                            <span className="font-semibold">Total Net</span>
+                                            <span className={`font-black text-xl ${net >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                                {net >= 0 ? '+' : '-'}${Math.abs(net).toFixed(2)}
+                                            </span>
+                                        </div>
+                                    </>
+                                );
+                            })()}
                         </CardContent>
                     </Card>
 
