@@ -56,9 +56,9 @@ export function StockSelector() {
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                    <DialogTitle>Manage Portfolio</DialogTitle>
+                    <DialogTitle>Manage Auto-Invest Allocation</DialogTitle>
                     <DialogDescription>
-                        Select assets to track in your market watch list.
+                        Select the assets you want to automatically invest in with every paycheck.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="py-2">
@@ -79,8 +79,8 @@ export function StockSelector() {
                                     <div
                                         key={asset.symbol}
                                         className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${isSelected
-                                                ? "bg-primary/5 border-primary/50"
-                                                : "hover:bg-muted/50"
+                                            ? "bg-primary/5 border-primary/50"
+                                            : "hover:bg-muted/50"
                                             }`}
                                         onClick={() => toggleStock(asset.symbol)}
                                     >
@@ -102,8 +102,8 @@ export function StockSelector() {
                                                 {asset.type}
                                             </Badge>
                                             <div className={`h-5 w-5 rounded-full flex items-center justify-center border ${isSelected
-                                                    ? "bg-primary border-primary text-primary-foreground"
-                                                    : "border-muted-foreground/30"
+                                                ? "bg-primary border-primary text-primary-foreground"
+                                                : "border-muted-foreground/30"
                                                 }`}>
                                                 {isSelected && <Check className="h-3 w-3" />}
                                             </div>

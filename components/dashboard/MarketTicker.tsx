@@ -71,7 +71,7 @@ export function MarketTicker() {
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <Activity className="h-5 w-5 text-muted-foreground" />
-                    <h2 className="text-lg font-semibold tracking-tight">Market Watch</h2>
+                    <h2 className="text-lg font-semibold tracking-tight">Your Portfolio</h2>
                 </div>
                 <StockSelector />
             </div>
