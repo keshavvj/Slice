@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { PortfolioCard } from '@/components/dashboard/PortfolioCard';
 import { AssetAllocation } from '@/components/dashboard/AssetAllocation';
 import { TrendingUp, PieChart, ArrowUpRight, DollarSign } from 'lucide-react';
+import { MarketTicker } from '@/components/dashboard/MarketTicker';
 
 export default function InvestingPage() {
     const { user, updateUserParams, performInvestment } = useStore();
@@ -35,6 +36,9 @@ export default function InvestingPage() {
             </div>
 
 
+
+
+            <MarketTicker />
 
             <div className="grid gap-6 lg:grid-cols-3">
                 {/* Main Portfolio Graphic */}

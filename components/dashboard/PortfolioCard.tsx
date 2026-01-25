@@ -36,8 +36,28 @@ export function PortfolioCard() {
         }
 
         const endPrice = portfolio.balance;
-        // Start much lower to allow for dramatic exponential rise (showing ~50% growth window)
-        const startPrice = endPrice * 0.50;
+
+        // Derive startPrice from the stored percent change
+        // Formula: End = Start * (1 + percent/100) -> Start = End / (1 + percent/100)
+        let percentChange = portfolio.weeklyChangePercent;
+
+        // Adjust simulated percent based on range (just for visual variety if user clicks around)
+        // But keep the base anchor bounded by the real data if possible, or just scale it.
+        // For simplicity and correctness request: Let's use the store's percent as the truth for the default view.
+        // If range changes, we can scale it to look realistic.
+        switch (selectedRange) {
+            case '1D': percentChange /= 7; break;
+            case '1W': percentChange *= 1; break;
+            case '1M': percentChange *= 4; break;
+            case '3M': percentChange *= 12; break;
+            case '1Y': percentChange *= 52; break;
+            case 'ALL': percentChange *= 100; break; // Long term
+        }
+
+        // Avoid division by zero issues or weird negative growth inversions for this simple chart
+        if (percentChange <= -100) percentChange = -99;
+
+        const startPrice = endPrice / (1 + (percentChange / 100));
 
         const data = [];
 
@@ -113,9 +133,28 @@ export function PortfolioCard() {
                     </div>
                     <div className="flex items-center gap-1.5 text-sm font-medium" style={{ color: color }}>
                         <ArrowUpRight className="w-4 h-4" />
-                        {/* Calculate actual profit from our derived start price */}
-                        <span>+${(portfolio.balance - (portfolio.balance * 0.50)).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-                        <span>(+100.00%)</span>
+                        {/* Calculate actual profit based on current range scaling */
+                            (() => {
+                                let percent = portfolio.weeklyChangePercent;
+                                switch (selectedRange) {
+                                    case '1D': percent /= 7; break;
+                                    case '1W': percent *= 1; break;
+                                    case '1M': percent *= 4; break;
+                                    case '3M': percent *= 12; break;
+                                    case '1Y': percent *= 52; break;
+                                    case 'ALL': percent *= 100; break;
+                                }
+                                const start = portfolio.balance / (1 + (percent / 100));
+                                const profit = portfolio.balance - start;
+
+                                return (
+                                    <>
+                                        <span>{profit >= 0 ? '+' : ''}${profit.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                                        <span>({profit >= 0 ? '+' : ''}{percent.toFixed(2)}%)</span>
+                                    </>
+                                );
+                            })()
+                        }
                         <span className="text-muted-foreground ml-1 font-normal">past {selectedRange.toLowerCase()}</span>
                     </div>
                 </div>
@@ -157,7 +196,7 @@ export function PortfolioCard() {
                                 }}
                                 itemStyle={{ color: color }}
                                 labelStyle={{ display: 'none' }}
-                                formatter={(value: number) => [`$${Number(value || 0).toFixed(2)}`, '']}
+                                formatter={(value: number | undefined) => [`$${Number(value || 0).toFixed(2)}`, '']}
                                 cursor={{ stroke: 'oklch(var(--muted-foreground))', strokeWidth: 1, strokeDasharray: '4 4' }}
                             />
                             <Area
