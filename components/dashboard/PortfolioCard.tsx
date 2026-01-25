@@ -196,7 +196,7 @@ export function PortfolioCard() {
                                 }}
                                 itemStyle={{ color: color }}
                                 labelStyle={{ display: 'none' }}
-                                formatter={(value: number | undefined) => [`$${Number(value || 0).toFixed(2)}`, '']}
+                                formatter={(value: any) => [`$${Number(value || 0).toFixed(2)}`, '']}
                                 cursor={{ stroke: 'oklch(var(--muted-foreground))', strokeWidth: 1, strokeDasharray: '4 4' }}
                             />
                             <Area
