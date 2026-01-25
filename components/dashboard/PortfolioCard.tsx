@@ -18,7 +18,7 @@ const timeRanges = [
 
 export function PortfolioCard() {
     const { portfolio } = useStore();
-    const [selectedRange, setSelectedRange] = React.useState('ALL');
+    const [selectedRange, setSelectedRange] = React.useState('1M');
 
     // Generate realistic "Robinhood-style" data using Brownian Bridge
     const { chartData, color } = React.useMemo(() => {
