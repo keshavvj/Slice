@@ -14,11 +14,12 @@ export function SignInButton({
     redirectTo = "/dashboard",
     children,
     className,
-    variant = "outline",
+    variant = "ghost",
     ...props
 }: SignInButtonProps) {
     return (
         <form
+            className="inline-block"
             action={async () => {
                 "use server"
                 await doSignIn(provider, redirectTo)

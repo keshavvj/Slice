@@ -5,6 +5,9 @@ import { HeroScrollDemo } from "@/components/hero-scroll-demo"
 import { Footer } from "@/components/ui/footer"
 import { Sparkles, ArrowRight, ShieldCheck, Users, TrendingUp, ChevronRight, Play, Twitter, Instagram, Linkedin } from "lucide-react"
 import Link from "next/link"
+import Image from "next/image"
+
+import { LOGO_DATA_URI } from "@/lib/logo-data"
 
 export default function LandingPage() {
   return (
@@ -21,10 +24,13 @@ export default function LandingPage() {
       {/* Navigation */}
       <header className="relative z-50 w-full px-6 py-6 flex items-center justify-between max-w-7xl mx-auto">
         <div className="flex items-center gap-2">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-            <span className="text-white font-bold text-xl">S</span>
-          </div>
-          <span className="text-xl font-bold tracking-tight">Slice</span>
+          <img
+            src={LOGO_DATA_URI}
+            alt="Slice Logo"
+            width={480}
+            height={160}
+            className="h-32 w-auto object-contain"
+          />
         </div>
 
         <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-white/60">
@@ -34,14 +40,12 @@ export default function LandingPage() {
         </nav>
 
         <div className="flex items-center gap-4">
-          <SignInButton className="hidden md:block text-sm font-medium text-white/60 hover:text-white transition-colors bg-transparent border-0 h-auto p-0">
+          <SignInButton className="hidden md:block text-sm font-medium text-white/60 hover:text-white hover:bg-transparent data-[state=open]:bg-transparent transition-colors bg-transparent border-0 h-auto p-0 shadow-none">
             Log in
           </SignInButton>
-          <div className="bg-white/10 hover:bg-white/20 transition-colors backdrop-blur-md rounded-full p-[1px]">
-            <SignInButton className="rounded-full px-6 bg-transparent border-0 hover:bg-transparent text-white">
-              Get Started
-            </SignInButton>
-          </div>
+          <SignInButton className="rounded-full px-6 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border-0 text-white transition-colors">
+            Get Started
+          </SignInButton>
         </div>
       </header>
 
@@ -88,11 +92,15 @@ export default function LandingPage() {
 
       <Footer
         logo={
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-            <span className="text-white font-bold text-lg">S</span>
-          </div>
+          <img
+            src={LOGO_DATA_URI}
+            alt="Slice Logo"
+            width={420}
+            height={140}
+            className="h-28 w-auto object-contain"
+          />
         }
-        brandName="Slice"
+        brandName=""
         socialLinks={[
           {
             icon: <Twitter className="h-4 w-4" />,
