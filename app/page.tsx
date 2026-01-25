@@ -2,6 +2,7 @@
 import { SignInButton } from "@/components/SignInButton"
 import { CTASection } from "@/components/ui/hero-dithering-card"
 import { HeroScrollDemo } from "@/components/hero-scroll-demo"
+import { FloatingNav } from "@/components/FloatingNav"
 import { Footer } from "@/components/ui/footer"
 import { Sparkles, ArrowRight, ShieldCheck, Users, TrendingUp, ChevronRight, Play, Twitter, Instagram, Linkedin } from "lucide-react"
 import Link from "next/link"
@@ -33,11 +34,7 @@ export default function LandingPage() {
           />
         </div>
 
-        <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-white/60">
-          <Link href="#features" className="hover:text-white transition-colors">Features</Link>
-          <Link href="#community" className="hover:text-white transition-colors">Community</Link>
-          <Link href="#security" className="hover:text-white transition-colors">Security</Link>
-        </nav>
+        <FloatingNav />
 
         <div className="flex items-center gap-4">
           <SignInButton className="hidden md:block text-sm font-medium text-white/60 hover:text-white hover:bg-transparent data-[state=open]:bg-transparent transition-colors bg-transparent border-0 h-auto p-0 shadow-none">
