@@ -10,17 +10,14 @@ import { PortfolioCard } from '@/components/dashboard/PortfolioCard';
 import { AssetAllocation } from '@/components/dashboard/AssetAllocation';
 import { TrendingUp, PieChart, ArrowUpRight, DollarSign } from 'lucide-react';
 import { MarketTicker } from '@/components/dashboard/MarketTicker';
+import { Dialog, DialogContent, DialogTrigger, DialogTitle } from '@/components/ui/dialog';
+import { SimulatePaycheckCard } from '@/components/dashboard/SimulatePaycheckCard';
 
 export default function InvestingPage() {
-    const { user, updateUserParams, performInvestment } = useStore();
+    const { user, updateUserParams } = useStore();
 
     const handlePercentChange = (val: number[]) => {
         updateUserParams({ investPercent: val[0] });
-    };
-
-    const handleSimulatePaycheck = () => {
-        const amount = (user.investPercent / 100) * 2000;
-        performInvestment(amount, "paycheck", `Paycheck allocation (${user.investPercent}%)`);
     };
 
     return (
@@ -30,9 +27,18 @@ export default function InvestingPage() {
                     <h1 className="text-3xl font-black tracking-tight">Micro-Investing</h1>
                     <p className="text-muted-foreground">Grow your wealth automatically.</p>
                 </div>
-                <Button onClick={handleSimulatePaycheck} size="lg" className="rounded-full">
-                    <DollarSign className="mr-2 h-4 w-4" /> Simulate Paycheck
-                </Button>
+
+                <Dialog>
+                    <DialogTrigger asChild>
+                        <Button size="lg" className="rounded-full shadow-lg bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white border-0">
+                            <DollarSign className="mr-2 h-4 w-4" /> Simulate Paycheck
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[425px] p-0 overflow-hidden bg-transparent border-0 shadow-none">
+                        <DialogTitle className="sr-only">Simulate Paycheck</DialogTitle>
+                        <SimulatePaycheckCard />
+                    </DialogContent>
+                </Dialog>
             </div>
 
 

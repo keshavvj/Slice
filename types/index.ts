@@ -11,6 +11,7 @@ export interface User {
   investFixedOverride?: number; // if set, use this amount instead of %
   investDestination: "portfolio" | "hysa";
   roundupsEnabled: boolean;
+  selectedStocks: string[];
 }
 
 export interface Transaction {
@@ -109,6 +110,7 @@ export type AppState = {
   createSplitRequest: (req: SplitRequest) => void;
   markSplitPaid: (id: string) => void;
   updateUserParams: (params: Partial<User>) => void;
+  toggleStock: (symbol: string) => void;
   performInvestment: (amount: number, type: "roundup" | "paycheck" | "manual", description: string) => void;
   checkAutoSplits: () => void;
   addGoal: (goal: SharedGoal) => void;
@@ -118,6 +120,7 @@ export type AppState = {
 
   syncNessieData: (force?: boolean) => Promise<void>;
   simulateNessieTransaction: (merchant: string, amount: number) => void;
+  simulatePaycheck: (overrideAmount?: number) => Promise<void>;
   settleSplit: (friendId: string, amount: number) => Promise<void>;
   sendMoney: (friendId: string, amount: number, note: string) => Promise<void>;
   resetAll: () => void;

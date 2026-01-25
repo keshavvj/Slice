@@ -116,6 +116,14 @@ export const nessieClient = {
         return fetchInternal(`transfers?accountId=${accountId}`, debug);
     },
 
+    createDeposit: async (accountId: string, deposit: { medium: string, amount: number, description?: string, transaction_date?: string }) => {
+        return postInternal(`deposits?accountId=${accountId}`, {
+            status: 'pending', // Deposits also typically default closely to cleared but pending is safe for creation
+            transaction_date: new Date().toISOString().split('T')[0],
+            ...deposit
+        });
+    },
+
     getDeposits: async (accountId: string, debug = false) => {
         return fetchInternal(`deposits?accountId=${accountId}`, debug);
     },

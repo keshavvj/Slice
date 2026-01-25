@@ -60,6 +60,19 @@ export const useStore = create<AppState>()(
                 user: { ...state.user, ...params }
             })),
 
+            toggleStock: (symbol) => set((state) => {
+                const current = state.user.selectedStocks || [];
+                const exists = current.includes(symbol);
+                return {
+                    user: {
+                        ...state.user,
+                        selectedStocks: exists
+                            ? current.filter(s => s !== symbol)
+                            : [...current, symbol]
+                    }
+                };
+            }),
+
             performInvestment: async (amount, type, description) => {
                 const state = get();
                 // If connected, sync with API
@@ -338,6 +351,73 @@ export const useStore = create<AppState>()(
                     accountId: state.selectedAccountId || 'demo_account'
                 };
                 get().addTransaction(newTx);
+            },
+
+            simulatePaycheck: async (overrideAmount) => {
+                const state = get();
+                const paycheckAmount = overrideAmount !== undefined ? overrideAmount : (state.user.paycheckAmount || 2000);
+
+                // 1. Nessie Deposit (Income)
+                if (state.nessieConnected && state.selectedAccountId) {
+                    try {
+                        await nessieClient.createDeposit(state.selectedAccountId, {
+                            medium: "balance",
+                            amount: paycheckAmount,
+                            description: "Payroll Direct Deposit",
+                            transaction_date: new Date().toISOString().split('T')[0]
+                        });
+                    } catch (e) {
+                        console.error("Paycheck API deposit failed", e);
+                    }
+                }
+
+                // 2. Logic: Calculate Auto-Invest
+                let investAmount = 0;
+                if (state.user.investFixedOverride && state.user.investFixedOverride > 0) {
+                    investAmount = state.user.investFixedOverride;
+                } else if (state.user.investPercent > 0) {
+                    investAmount = (paycheckAmount * state.user.investPercent) / 100;
+                }
+
+                // 3. Local State Update (Income Transaction)
+                const incomeTx: Transaction = {
+                    id: `pay_${Date.now()}`,
+                    date: new Date().toISOString(),
+                    merchant_name: "Work Gusto",
+                    category: "Income",
+                    amount: paycheckAmount,
+                    status: "posted",
+                    isPaycheck: true,
+                    accountId: state.selectedAccountId || "demo_account"
+                };
+
+                // Add income tx (which increases balance in addTransaction logic if negative? No, logic needs review)
+                // Existing addTransaction logic subtracts amount. We need to handle Income/Deposits differently?
+                // Looking at addTransaction: checkingBalance: s.user.checkingBalance - tx.amount
+                // So for income, we should probably manually update or pass negative amount?
+                // Standard convention: Expense positive, Income negative? Or type checking?
+                // Let's do manual update here to be safe and clear.
+
+                set(s => ({
+                    transactions: [incomeTx, ...s.transactions],
+                    user: {
+                        ...s.user,
+                        checkingBalance: s.user.checkingBalance + paycheckAmount
+                    }
+                }));
+
+                // 4. Perform Investment (Deduct form checking, Add to Portfolio)
+                if (investAmount > 0) {
+                    // small delay to ensure ordering
+                    setTimeout(() => {
+                        get().performInvestment(investAmount, "paycheck", `Auto-Invest ${state.user.investPercent}% of Paycheck`);
+                    }, 500);
+                }
+
+                // 5. Nessie Sync to confirm
+                if (state.nessieConnected) {
+                    setTimeout(() => get().syncNessieData(true), 1500);
+                }
             },
 
             settleSplit: async (friendId: string, amount: number) => {

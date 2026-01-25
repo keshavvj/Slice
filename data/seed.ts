@@ -11,6 +11,7 @@ export const SEED_USER: User = {
     investPercent: 10,
     investDestination: "portfolio",
     roundupsEnabled: true,
+    selectedStocks: ["AAPL", "MSFT", "SPY", "BINANCE:BTCUSDT"]
 };
 
 export const SEED_FRIENDS: Friend[] = [

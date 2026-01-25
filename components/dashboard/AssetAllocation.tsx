@@ -3,14 +3,52 @@
 import * as React from "react"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-
-const data = [
-    { name: "Stocks", value: 65, color: "#6366f1" }, // Indigo
-    { name: "Crypto", value: 20, color: "#8b5cf6" }, // Violet
-    { name: "Cash", value: 15, color: "#10b981" },   // Emerald
-]
+import { useStore } from "@/lib/store"
 
 export function AssetAllocation() {
+    const { user } = useStore()
+
+    const data = React.useMemo(() => {
+        const selected = user.selectedStocks || ["AAPL", "MSFT", "SPY", "BINANCE:BTCUSDT"] // Default fallbacks
+
+        let stockCount = 0
+        let cryptoCount = 0
+
+        selected.forEach(s => {
+            if (s.includes("BINANCE:")) {
+                cryptoCount++
+            } else {
+                stockCount++
+            }
+        })
+
+        const totalSelected = stockCount + cryptoCount
+
+        // Define base allocation
+        const cashValue = 15 // Keeps 15% cash
+        const investableValue = 100 - cashValue
+
+        let stockValue = 0
+        let cryptoValue = 0
+
+        if (totalSelected > 0) {
+            stockValue = (stockCount / totalSelected) * investableValue
+            cryptoValue = (cryptoCount / totalSelected) * investableValue
+        } else {
+            // If nothing selected, maybe just default allocation?
+            stockValue = 65
+            cryptoValue = 20
+        }
+
+        // Filter out zero values so labels don't look weird if 0
+        return [
+            { name: "Stocks", value: Math.round(stockValue), color: "#6366f1" }, // Indigo
+            { name: "Crypto", value: Math.round(cryptoValue), color: "#8b5cf6" }, // Violet
+            { name: "Cash", value: cashValue, color: "#10b981" },   // Emerald
+        ].filter(item => item.value > 0)
+
+    }, [user.selectedStocks])
+
     return (
         <Card className="h-full">
             <CardHeader>
@@ -41,6 +79,7 @@ export function AssetAllocation() {
                                     borderRadius: '8px'
                                 }}
                                 itemStyle={{ color: 'oklch(var(--foreground))' }}
+                                formatter={(value: number | undefined) => [`${value}%`, '']}
                             />
                         </PieChart>
                     </ResponsiveContainer>
@@ -49,11 +88,11 @@ export function AssetAllocation() {
                         <span className="text-xs text-muted-foreground uppercase tracking-wider">Diversified</span>
                     </div>
                 </div>
-                <div className="flex justify-center gap-4 mt-4">
+                <div className="flex justify-center gap-4 mt-4 flex-wrap">
                     {data.map((item) => (
                         <div key={item.name} className="flex items-center gap-2">
                             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                            <span className="text-xs font-medium text-muted-foreground">{item.name}</span>
+                            <span className="text-xs font-medium text-muted-foreground">{item.name} ({item.value}%)</span>
                         </div>
                     ))}
                 </div>
