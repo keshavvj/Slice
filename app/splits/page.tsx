@@ -219,58 +219,52 @@ export default function SplitsPage() {
                 {/* Active Requests List */}
                 <div className="space-y-4">
                     <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Active Requests</h2>
-                    {splitRequests.length === 0 ? (
+                    {splitRequests.filter(req => req.status === 'pending').length === 0 ? (
                         <div className="p-8 border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-center text-muted-foreground">
                             <Check className="w-8 h-8 mb-2 opacity-20" />
                             <p>All settled up!</p>
                         </div>
                     ) : (
-                        splitRequests.map(req => {
-                            // 1. Identify relationship
-                            const isIncoming = req.friendId === user.id; // I owe
-                            // const isOutgoing = req.requesterId === user.id; // They owe (implied if not incoming)
+                        splitRequests
+                            .filter(req => req.status === 'pending')
+                            .map(req => {
+                                // 1. Identify relationship
+                                const isIncoming = req.friendId === user.id; // I owe
 
-                            // 2. Determine Display Friend
-                            // If isIncoming (I owe requester), we need to show the Requester's name.
-                            // If isOutgoing (Friend owes me), we show Friend's name.
+                                // 2. Determine Display Friend
+                                let displayFriend = friends.find(f => f.id === (isIncoming ? req.requesterId : req.friendId));
+                                const displayName = displayFriend?.name || (isIncoming ? 'Someone' : 'Unknown');
+                                const displayInitials = displayFriend?.avatarInitials || '?';
 
-                            let displayFriend = friends.find(f => f.id === (isIncoming ? req.requesterId : req.friendId));
-
-                            // Fallback if not found (e.g. requester not in friend list?)
-                            const displayName = displayFriend?.name || (isIncoming ? 'Someone' : 'Unknown');
-                            const displayInitials = displayFriend?.avatarInitials || '?';
-
-                            return (
-                                <Card key={req.id} className="group hover:border-primary/50 transition-colors">
-                                    <CardContent className="p-4 flex items-center justify-between">
-                                        <div className="flex items-center gap-4">
-                                            <Avatar className="h-10 w-10 border">
-                                                <AvatarFallback>{displayInitials}</AvatarFallback>
-                                            </Avatar>
-                                            <div>
-                                                <div className="font-semibold flex items-center gap-2">
-                                                    {displayName}
-                                                    {req.status === 'paid' && <Badge variant="secondary" className="text-[10px] h-5 px-1 bg-green-100 text-green-700">PAID</Badge>}
-                                                </div>
-                                                <div className="text-xs text-muted-foreground flex items-center gap-1">
-                                                    {isIncoming ? (
-                                                        <span className="text-red-500 font-medium flex items-center">
-                                                            You owe this
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-green-600 font-medium flex items-center">
-                                                            Owes you
-                                                        </span>
-                                                    )}
-                                                    <span>• {new Date(req.createdAt).toLocaleDateString()}</span>
+                                return (
+                                    <Card key={req.id} className="group hover:border-primary/50 transition-colors">
+                                        <CardContent className="p-4 flex items-center justify-between">
+                                            <div className="flex items-center gap-4">
+                                                <Avatar className="h-10 w-10 border">
+                                                    <AvatarFallback>{displayInitials}</AvatarFallback>
+                                                </Avatar>
+                                                <div>
+                                                    <div className="font-semibold flex items-center gap-2">
+                                                        {displayName}
+                                                    </div>
+                                                    <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                                        {isIncoming ? (
+                                                            <span className="text-red-500 font-medium flex items-center">
+                                                                You owe this
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-green-600 font-medium flex items-center">
+                                                                Owes you
+                                                            </span>
+                                                        )}
+                                                        <span>• {new Date(req.createdAt).toLocaleDateString()}</span>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="font-black text-lg">
-                                                ${req.amountOwed.toFixed(2)}
-                                            </div>
-                                            {req.status === 'pending' && (
+                                            <div className="text-right">
+                                                <div className="font-black text-lg">
+                                                    ${req.amountOwed.toFixed(2)}
+                                                </div>
                                                 <div className="mt-1">
                                                     {isIncoming ? (
                                                         <Button size="sm" onClick={() => setConfirmingSplitId(req.id)}>Pay Now</Button>
@@ -280,12 +274,56 @@ export default function SplitsPage() {
                                                         </span>
                                                     )}
                                                 </div>
-                                            )}
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            );
-                        })
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                );
+                            })
+                    )}
+
+                    {/* Past Requests List */}
+                    {splitRequests.filter(req => req.status === 'paid').length > 0 && (
+                        <>
+                            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider pt-6">History</h2>
+                            {splitRequests
+                                .filter(req => req.status === 'paid')
+                                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                                .map(req => {
+                                    const isIncoming = req.friendId === user.id;
+                                    let displayFriend = friends.find(f => f.id === (isIncoming ? req.requesterId : req.friendId));
+                                    const displayName = displayFriend?.name || (isIncoming ? 'Someone' : 'Unknown');
+                                    const displayInitials = displayFriend?.avatarInitials || '?';
+
+                                    return (
+                                        <Card key={req.id} className="bg-muted/20 border-border/50 opacity-75 hover:opacity-100 transition-opacity">
+                                            <CardContent className="p-4 flex items-center justify-between">
+                                                <div className="flex items-center gap-4">
+                                                    <Avatar className="h-8 w-8 border opacity-70">
+                                                        <AvatarFallback className="text-xs">{displayInitials}</AvatarFallback>
+                                                    </Avatar>
+                                                    <div>
+                                                        <div className="font-medium text-sm flex items-center gap-2 text-muted-foreground">
+                                                            {displayName}
+                                                            <Badge variant="outline" className="text-[10px] h-5 px-1 bg-muted">PAID</Badge>
+                                                        </div>
+                                                        <div className="text-[10px] text-muted-foreground">
+                                                            {new Date(req.createdAt).toLocaleDateString()}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="font-bold text-muted-foreground line-through">
+                                                        ${req.amountOwed.toFixed(2)}
+                                                    </div>
+                                                    <div className="text-[10px] text-muted-foreground">
+                                                        Settled
+                                                    </div>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    );
+                                })}
+                        </>
                     )}
                 </div>
 
