@@ -59,9 +59,7 @@ export default function Dashboard() {
                     </p>
                 </div>
                 <div className="flex gap-2">
-                    <Button size="lg" className="rounded-full shadow-lg shadow-primary/20" onClick={handleSimulateRide}>
-                        <Plus className="mr-2 h-4 w-4" /> Add Money
-                    </Button>
+                    {/* Add Money button removed as per feedback */}
                 </div>
             </div>
 
@@ -145,11 +143,11 @@ export default function Dashboard() {
                             <p className="text-primary-foreground/80 text-sm mb-4">
                                 Alex and Sarah owe you for "Ski Trip Dinner"
                             </p>
-                            <Link href="/splits">
-                                <Button variant="secondary" className="w-full text-primary font-bold">
+                            <Button variant="secondary" className="w-full text-primary font-bold" asChild>
+                                <Link href="/splits">
                                     View Details
-                                </Button>
-                            </Link>
+                                </Link>
+                            </Button>
                         </CardContent>
                     </Card>
 

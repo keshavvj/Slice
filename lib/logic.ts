@@ -5,7 +5,8 @@ export function calculateSafeToSpend(
     balance: number,
     bills: Bill[],
     pendingSplitsOwedByUser: number, // what I owe others
-    expectedInvesting: number // estimated investing outflow
+    expectedInvesting: number, // estimated investing outflow
+    safetyBuffer: number = 0 // minimum buffer to keep
 ): { safeAmount: number; breakdown: any } {
     // 1. Calculate bills due in next 7 days
     const today = new Date();
@@ -30,7 +31,7 @@ export function calculateSafeToSpend(
     });
 
     // 2. Deduction
-    const deduction = billsTotal + pendingSplitsOwedByUser + expectedInvesting;
+    const deduction = billsTotal + pendingSplitsOwedByUser + expectedInvesting + safetyBuffer;
     const safe = Math.max(0, balance - deduction);
 
     return {

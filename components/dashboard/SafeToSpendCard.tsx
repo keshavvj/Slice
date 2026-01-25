@@ -31,7 +31,8 @@ export function SafeToSpendCard() {
         user.checkingBalance,
         bills,
         pendingSplitsOwed,
-        expectedInvesting
+        expectedInvesting,
+        user.safetyThreshold
     );
 
     const percent = Math.min(100, Math.max(0, (safeAmount / user.checkingBalance) * 100));
