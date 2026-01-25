@@ -1,6 +1,9 @@
 
 import { SignInButton } from "@/components/SignInButton"
-import { Sparkles, ArrowRight, ShieldCheck, Users, TrendingUp, ChevronRight, Play } from "lucide-react"
+import { CTASection } from "@/components/ui/hero-dithering-card"
+import { HeroScrollDemo } from "@/components/hero-scroll-demo"
+import { Footer } from "@/components/ui/footer"
+import { Sparkles, ArrowRight, ShieldCheck, Users, TrendingUp, ChevronRight, Play, Twitter, Instagram, Linkedin } from "lucide-react"
 import Link from "next/link"
 
 export default function LandingPage() {
@@ -43,79 +46,16 @@ export default function LandingPage() {
       </header>
 
       {/* Hero Section */}
-      <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 text-center mt-10 md:mt-20 mb-20">
-
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-white/5 backdrop-blur-xl text-sm font-medium text-indigo-300 mb-8 hover:scale-105 transition-transform cursor-default">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
-          </span>
-          Social Banking Reimagined
-        </div>
-
-        <h1 className="text-6xl md:text-8xl lg:text-9xl font-black tracking-tighter leading-[0.9] text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/40 mb-8 max-w-5xl mx-auto drop-shadow-2xl">
-          Money moves<br />better together.
-        </h1>
-
-        <p className="text-lg md:text-2xl text-white/50 max-w-2xl mx-auto leading-relaxed mb-12">
-          Slice is the financial OS for your social life. Split bills instantly, invest with your squad, and crush goals without the awkward conversations.
-        </p>
-
-        <div className="flex flex-col sm:flex-row items-center gap-6 w-full max-w-md sm:max-w-none justify-center">
-          <div className="group relative w-full sm:w-auto">
-            <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-indigo-500 via-fuchsia-500 to-indigo-500 opacity-75 blur transition duration-500 group-hover:opacity-100 animate-gradient-x"></div>
-            <div className="relative bg-black rounded-full">
-              <SignInButton className="w-full sm:w-auto rounded-full px-8 py-6 text-lg font-bold bg-black hover:bg-black/90 border-0">
-                Join for Free <ArrowRight className="ml-2 w-5 h-5" />
-              </SignInButton>
-            </div>
-          </div>
-
-          <button className="flex items-center gap-3 px-8 py-4 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 backdrop-blur-sm transition-all text-white font-medium group">
-            <div className="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Play className="w-3 h-3 fill-current ml-0.5" />
-            </div>
-            Watch Demo
-          </button>
-        </div>
-
-        {/* Dashboard Preview / Floating UI Elements */}
-        <div className="mt-24 relative w-full max-w-5xl mx-auto perspective-[2000px]">
-          <div className="relative z-10 p-2 rounded-3xl bg-gradient-to-b from-white/20 to-white/5 backdrop-blur-2xl border border-white/10 rotate-x-12 transform-gpu shadow-2xl shadow-indigo-500/20">
-            <div className="rounded-2xl overflow-hidden bg-black/80 aspect-[16/9] relative border border-white/5 flex items-center justify-center group">
-              <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-fuchsia-500/10 opacity-50"></div>
-              <div className="text-center space-y-2">
-                <p className="text-white/40 text-sm font-mono uppercase tracking-widest">Internal Preview</p>
-                <h3 className="text-2xl font-bold text-white">Slice Dashboard</h3>
-              </div>
-
-              {/* Floating Cards Mockup */}
-              <div className="absolute top-10 left-10 p-4 rounded-xl bg-gray-900/90 border border-white/10 w-48 shadow-xl animate-float-slow">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center text-green-400">$</div>
-                  <div className="text-xs text-white/60">Safe to Spend</div>
-                </div>
-                <div className="text-xl font-bold text-white">$1,240.50</div>
-              </div>
-
-              <div className="absolute bottom-10 right-10 p-4 rounded-xl bg-gray-900/90 border border-white/10 w-56 shadow-xl animate-float-delayed">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400"><Users className="w-4 h-4" /></div>
-                  <div className="text-xs text-white/60">Ski Trip Split</div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white font-bold">$450.00</span>
-                  <span className="text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-400">Paid</span>
-                </div>
-              </div>
-
-            </div>
-          </div>
-
-          {/* Glow behind preview */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-indigo-500/20 blur-[150px] -z-10 rounded-full"></div>
-        </div>
-
+      <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-0 mt-10 md:mt-10 mb-20 w-full">
+        <CTASection
+          ctaButton={
+            <SignInButton className="group relative inline-flex h-14 items-center justify-center gap-3 overflow-hidden rounded-full bg-white px-12 text-base font-bold text-black transition-all duration-300 hover:bg-white/90 hover:scale-105 active:scale-95 border-0 hover:ring-0">
+              <span className="relative z-10">Get Started</span>
+              <ArrowRight className="h-5 w-5 relative z-10 transition-transform duration-300 group-hover:translate-x-1" />
+            </SignInButton>
+          }
+        />
+        <HeroScrollDemo />
       </main>
 
       {/* Feature Grid */}
@@ -146,9 +86,46 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <footer className="relative z-10 py-12 text-center text-white/20 text-sm border-t border-white/5">
-        <p>© 2026 Slice Financial Inc. Not a bank.</p>
-      </footer>
+      <Footer
+        logo={
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+            <span className="text-white font-bold text-lg">S</span>
+          </div>
+        }
+        brandName="Slice"
+        socialLinks={[
+          {
+            icon: <Twitter className="h-4 w-4" />,
+            href: "https://twitter.com",
+            label: "Twitter",
+          },
+          {
+            icon: <Instagram className="h-4 w-4" />,
+            href: "https://instagram.com",
+            label: "Instagram",
+          },
+          {
+            icon: <Linkedin className="h-4 w-4" />,
+            href: "https://linkedin.com",
+            label: "LinkedIn",
+          },
+        ]}
+        mainLinks={[
+          { href: "#features", label: "Features" },
+          { href: "#community", label: "Community" },
+          { href: "#security", label: "Security" },
+          { href: "/login", label: "Login" },
+        ]}
+        legalLinks={[
+          { href: "/privacy", label: "Privacy Policy" },
+          { href: "/terms", label: "Terms of Service" },
+          { href: "/cookie-policy", label: "Cookie Policy" },
+        ]}
+        copyright={{
+          text: "© 2026 Slice Financial Inc.",
+          license: "Not a bank. Banking services provided by partner banks.",
+        }}
+      />
     </div>
   )
 }
