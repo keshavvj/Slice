@@ -11,7 +11,7 @@ interface AppState {
     bills: Bill[];
     splitRequests: SplitRequest[];
     portfolio: Portfolio;
-    goal: SharedGoal;
+    goals: SharedGoal[];
     investments: InvestmentEntry[];
 
     // Actions
@@ -22,6 +22,8 @@ interface AppState {
     updateUserParams: (params: Partial<User>) => void;
     performInvestment: (amount: number, type: "roundup" | "paycheck" | "manual", description: string) => void;
     checkAutoSplits: () => void; // dummy for now
+    addGoal: (goal: SharedGoal) => void;
+    contributeToGoal: (goalId: string, amount: number) => void;
 }
 
 export const useStore = create<AppState>()(
@@ -33,7 +35,7 @@ export const useStore = create<AppState>()(
             bills: SEED_BILLS,
             splitRequests: SEED_SPLIT_REQUESTS,
             portfolio: SEED_PORTFOLIO,
-            goal: SEED_GOAL,
+            goals: [SEED_GOAL],
             investments: [],
 
             setTransactions: (txs) => set({ transactions: txs }),
@@ -97,6 +99,28 @@ export const useStore = create<AppState>()(
             }),
 
             checkAutoSplits: () => { },
+
+            addGoal: (goal) => set((state) => ({
+                goals: [...state.goals, goal]
+            })),
+
+            contributeToGoal: (goalId, amount) => set((state) => ({
+                goals: state.goals.map(g => {
+                    if (g.id !== goalId) return g;
+                    const newContribution = {
+                        date: new Date().toISOString(),
+                        memberId: state.user.id,
+                        amount: amount
+                    };
+                    return {
+                        ...g,
+                        currentAmount: g.currentAmount + amount,
+                        contributions: [newContribution, ...g.contributions]
+                    };
+                }),
+                // Optionally deduct from user balance? The user didn't explicitly ask, but it makes sense.
+                // I'll stick to just the goal update as requested to keep it simple and safe.
+            })),
         }),
         {
             name: 'slice-storage',
