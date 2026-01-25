@@ -47,16 +47,18 @@ export default function FriendsPage() {
         })
         .map(f => {
             const txs = splitRequests.filter(r => r.friendId === f.id || r.requesterId === f.id);
-            let net = 0;
+            let owedByFriend = 0;
+            let owedToFriend = 0;
             txs.forEach(r => {
                 if (r.status === 'paid') return;
                 if (r.friendId === f.id) {
-                    net += r.amountOwed;
+                    owedByFriend += r.amountOwed;
                 } else {
-                    net -= r.amountOwed;
+                    owedToFriend += r.amountOwed;
                 }
             });
-            return { ...f, net };
+            const net = owedByFriend - owedToFriend;
+            return { ...f, net, owedByFriend, owedToFriend };
         });
 
     return (
@@ -150,15 +152,52 @@ export default function FriendsPage() {
                         </CardHeader>
                         <CardContent>
                             <CardTitle className="text-lg mb-1">{friend.name}</CardTitle>
-                            <div className="flex items-center justify-between mt-4">
-                                <div>
-                                    <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Net Balance</div>
-                                    <div className={`text-xl font-black ${friend.net >= 0 ? "text-green-600" : "text-red-600"}`}>
-                                        {friend.net >= 0 ? '+' : '-'}${Math.abs(friend.net).toFixed(2)}
+                            <div className="space-y-3 mt-4">
+                                {friend.owedToFriend > 0 && (
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span className="text-muted-foreground">You owe</span>
+                                        <span className="font-bold text-red-600">-${friend.owedToFriend.toFixed(2)}</span>
                                     </div>
+                                )}
+                                {friend.owedByFriend > 0 && (
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span className="text-muted-foreground">Owes you</span>
+                                        <span className="font-bold text-green-600">+${friend.owedByFriend.toFixed(2)}</span>
+                                    </div>
+                                )}
+                                <div className="pt-2 border-t flex items-center justify-between">
+                                    <span className="text-xs font-semibold uppercase text-muted-foreground">Net</span>
+                                    <span className={`font-black ${friend.net >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                        {friend.net >= 0 ? '+' : '-'}${Math.abs(friend.net).toFixed(2)}
+                                    </span>
                                 </div>
-                                <div className="text-xs text-right text-muted-foreground">
-                                    {friend.net >= 0 ? 'owes you' : 'you owe'}
+                                <div className="pt-2">
+                                    {friend.net < 0 && (
+                                        <Button
+                                            className="w-full bg-red-600 hover:bg-red-700 text-white"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (confirm(`Are you sure you want to settle your balance of $${Math.abs(friend.net).toFixed(2)} with ${friend.name}?`)) {
+                                                    // Logic to settle would go here (e.g., mark splits as paid)
+                                                    // For MVP, just alert
+                                                    alert(`Settled $${Math.abs(friend.net).toFixed(2)} with ${friend.name}!`);
+                                                }
+                                            }}
+                                        >
+                                            Settle Up
+                                        </Button>
+                                    )}
+                                    {friend.net > 0 && (
+                                        <Button
+                                            className="w-full bg-green-600 hover:bg-green-700 text-white"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                alert(`Request sent to ${friend.name} for $${friend.net.toFixed(2)}!`);
+                                            }}
+                                        >
+                                            Request Payment
+                                        </Button>
+                                    )}
                                 </div>
                             </div>
                         </CardContent>
