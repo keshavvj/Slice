@@ -29,16 +29,7 @@ export default function Dashboard() {
 
     const handleSimulateCharge = () => {
         const { merchant, category, amount } = generateSmartTransaction();
-
-        addTransaction({
-            id: `tx_${Date.now()}`,
-            date: new Date().toISOString(),
-            merchant_name: merchant,
-            category: category,
-            amount: amount,
-            status: "posted",
-            accountId: "acc_simulated"
-        });
+        useStore.getState().simulateNessieTransaction(merchant, amount);
     };
 
     return (

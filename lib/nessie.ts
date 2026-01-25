@@ -64,6 +64,21 @@ export async function fetchInternal(endpoint: string, debug = false) {
     return res.json();
 }
 
+export async function postInternal(endpoint: string, body: any) {
+    const url = `/api/nessie/${endpoint}`;
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    });
+
+    if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error.error || `Failed to post to ${endpoint} (Status: ${res.status})`);
+    }
+    return res.json();
+}
+
 export const nessieClient = {
     getCustomers: async (debug = false) => {
         return fetchInternal('customers', debug);
@@ -75,6 +90,15 @@ export const nessieClient = {
 
     getPurchases: async (accountId: string, debug = false) => {
         return fetchInternal(`transactions?accountId=${accountId}`, debug);
+    },
+
+    createPurchase: async (accountId: string, purchase: { merchant_id?: string, medium?: string, amount: number, description?: string, purchase_date?: string }) => {
+        return postInternal(`transactions?accountId=${accountId}`, {
+            medium: 'balance',
+            status: 'pending',
+            purchase_date: new Date().toISOString().split('T')[0],
+            ...purchase
+        });
     },
 
     getTransfers: async (accountId: string, debug = false) => {

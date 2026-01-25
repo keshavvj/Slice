@@ -49,3 +49,55 @@ export async function GET(request: NextRequest) {
         );
     }
 }
+
+export async function POST(request: NextRequest) {
+    const apiKey = process.env.NESSIE_API_KEY;
+    const searchParams = request.nextUrl.searchParams;
+    const accountId = searchParams.get('accountId');
+
+    if (!apiKey) {
+        return NextResponse.json(
+            { error: 'Server configuration error: NESSIE_API_KEY is missing' },
+            { status: 500 }
+        );
+    }
+
+    if (!accountId) {
+        return NextResponse.json(
+            { error: 'Missing accountId query parameter' },
+            { status: 400 }
+        );
+    }
+
+    try {
+        const body = await request.json();
+
+        // Forward to Nessie
+        const response = await fetch(`${BASE_URL}/accounts/${accountId}/purchases?key=${apiKey}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body)
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Nessie API error (create purchase): ${response.status} ${errorText}`);
+            return NextResponse.json(
+                { error: `Nessie API error: ${errorText}` },
+                { status: response.status }
+            );
+        }
+
+        const data = await response.json();
+        return NextResponse.json(data, { status: 201 });
+
+    } catch (error) {
+        console.error('Error creating transaction:', error);
+        return NextResponse.json(
+            { error: 'Failed to create transaction in Nessie' },
+            { status: 500 }
+        );
+    }
+}

@@ -60,36 +60,54 @@ export const useStore = create<AppState>()(
                 user: { ...state.user, ...params }
             })),
 
-            performInvestment: (amount, type, description) => set((state) => {
-                const newEntry: InvestmentEntry = {
-                    id: `inv_${Date.now()}_${Math.random()}`,
-                    date: new Date().toISOString(),
-                    type,
-                    amount,
-                    destination: state.user.investDestination,
-                    description
-                };
-
-                const newBalance = state.portfolio.balance + amount;
-                // Simulate chart update
-                const newChart = [...state.portfolio.chartPoints, {
-                    date: new Date().toISOString().split('T')[0],
-                    value: newBalance
-                }];
-
-                return {
-                    investments: [newEntry, ...state.investments],
-                    portfolio: {
-                        ...state.portfolio,
-                        balance: newBalance,
-                        chartPoints: newChart
-                    },
-                    user: {
-                        ...state.user,
-                        checkingBalance: state.user.checkingBalance - amount // Deduct from checking
+            performInvestment: async (amount, type, description) => {
+                const state = get();
+                // If connected, sync with API
+                if (state.nessieConnected && state.selectedAccountId) {
+                    try {
+                        await nessieClient.createPurchase(state.selectedAccountId, {
+                            merchant_id: "57cf75ce2e25f755279b6343", // Generic "Investment" merchant or similar
+                            amount: amount,
+                            description: description || `Investment (${type})`,
+                            medium: "balance"
+                        });
+                        // Re-sync after delay to catch update
+                        setTimeout(() => get().syncNessieData(true), 1000);
+                    } catch (e) {
+                        console.error("Investment API call failed", e);
                     }
-                };
-            }),
+                }
+
+                set((state) => {
+                    const newEntry: InvestmentEntry = {
+                        id: `inv_${Date.now()}_${Math.random()}`,
+                        date: new Date().toISOString(),
+                        type,
+                        amount,
+                        destination: state.user.investDestination,
+                        description
+                    };
+
+                    const newBalance = state.portfolio.balance + amount;
+                    const newChart = [...state.portfolio.chartPoints, {
+                        date: new Date().toISOString().split('T')[0],
+                        value: newBalance
+                    }];
+
+                    return {
+                        investments: [newEntry, ...state.investments],
+                        portfolio: {
+                            ...state.portfolio,
+                            balance: newBalance,
+                            chartPoints: newChart
+                        },
+                        user: {
+                            ...state.user,
+                            checkingBalance: state.user.checkingBalance - amount
+                        }
+                    };
+                });
+            },
 
             checkAutoSplits: () => { },
 
@@ -97,9 +115,25 @@ export const useStore = create<AppState>()(
                 goals: [...state.goals, goal]
             })),
 
-            contributeToGoal: (goalId, amount) => {
+            contributeToGoal: async (goalId, amount) => {
                 const state = get();
-                // 1. Create Transaction
+
+                // API Call
+                if (state.nessieConnected && state.selectedAccountId) {
+                    try {
+                        await nessieClient.createPurchase(state.selectedAccountId, {
+                            merchant_id: "57cf75ce2e25f755279b6343", // Using generic ID
+                            amount: amount,
+                            description: `Goal Contribution: ${state.goals.find(g => g.id === goalId)?.name || 'Savings'}`,
+                            medium: "balance"
+                        });
+                        setTimeout(() => get().syncNessieData(true), 1000);
+                    } catch (e) {
+                        console.error("Goal Contribution API call failed", e);
+                    }
+                }
+
+                // Local Update
                 const newTx: Transaction = {
                     id: `tx_goal_${Date.now()}`,
                     date: new Date().toISOString(),
@@ -111,13 +145,11 @@ export const useStore = create<AppState>()(
                 };
 
                 set((state) => ({
-                    // 2. Deduct Balance & Add Transaction
                     user: {
                         ...state.user,
                         checkingBalance: state.user.checkingBalance - amount
                     },
                     transactions: [newTx, ...state.transactions],
-                    // 3. Update Goal
                     goals: state.goals.map(g => {
                         if (g.id !== goalId) return g;
                         const newContribution = {
@@ -241,7 +273,23 @@ export const useStore = create<AppState>()(
                 }
             },
 
-            simulateNessieTransaction: (merchant, amount) => {
+            simulateNessieTransaction: async (merchant, amount) => {
+                const state = get();
+                if (state.nessieConnected && state.selectedAccountId) {
+                    try {
+                        await nessieClient.createPurchase(state.selectedAccountId, {
+                            amount: amount,
+                            description: merchant,
+                            medium: "balance"
+                        });
+                        // Re-sync
+                        setTimeout(() => get().syncNessieData(true), 1000);
+                    } catch (e) {
+                        console.error("Simulation API call failed", e);
+                    }
+                }
+
+                // Optimistic Local update
                 const newTx: Transaction = {
                     id: `sim_${Date.now()}`,
                     date: new Date().toISOString().split('T')[0],
@@ -249,7 +297,7 @@ export const useStore = create<AppState>()(
                     amount: amount,
                     category: 'Shopping',
                     status: 'posted',
-                    accountId: get().selectedAccountId || 'demo_account'
+                    accountId: state.selectedAccountId || 'demo_account'
                 };
                 get().addTransaction(newTx);
             },
