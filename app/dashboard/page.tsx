@@ -4,9 +4,11 @@
 import * as React from 'react';
 import { SafeToSpendCard } from '@/components/dashboard/SafeToSpendCard';
 import { PortfolioCard } from '@/components/dashboard/PortfolioCard';
+import { InsightsCard } from '@/components/dashboard/InsightsCard';
 import { RecentTransactions } from '@/components/dashboard/RecentTransactions';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useStore } from '@/lib/store';
+import { generatePendingSummary, generateSmartTransaction } from '@/lib/logic';
 import { Button } from '@/components/ui/button';
 import { Plus, Send, Zap, Split, ArrowUpRight } from 'lucide-react';
 import { useSession } from "next-auth/react";
@@ -14,26 +16,29 @@ import Link from 'next/link';
 import { useEffect } from 'react';
 
 export default function Dashboard() {
-    const { user, transactions, setTransactions, addTransaction, nessieConnected, syncNessieData, portfolio } = useStore();
+    const { user, transactions, setTransactions, addTransaction, nessieConnected, syncNessieData, portfolio, splitRequests, friends } = useStore();
     const { data: session } = useSession();
+
+    // Calculate pending summary
+    const { summary: pendingSummary, total: pendingTotal } = generatePendingSummary(splitRequests, friends, transactions, user.id);
 
     useEffect(() => {
         // Attempt to sync on mount
         syncNessieData();
     }, []);
 
-    const handleSimulateRide = () => {
+    const handleSimulateCharge = () => {
+        const { merchant, category, amount } = generateSmartTransaction();
+
         addTransaction({
             id: `tx_${Date.now()}`,
             date: new Date().toISOString(),
-            merchant_name: "Uber",
-            category: "Transport",
-            amount: 32.50,
+            merchant_name: merchant,
+            category: category,
+            amount: amount,
             status: "posted",
-            accountId: "acc_1"
+            accountId: "acc_simulated"
         });
-        // Normally use toast here
-        alert("Simulated Uber ride for $32.50");
     };
 
     return (
@@ -104,7 +109,7 @@ export default function Dashboard() {
                         </CardContent>
                     </Card>
                 </Link>
-                <div onClick={handleSimulateRide} className="cursor-pointer">
+                <div onClick={handleSimulateCharge} className="cursor-pointer">
                     <Card className="hover:bg-muted/50 transition-colors border-dashed border-2 shadow-none hover:border-primary/50 group h-full">
                         <CardContent className="p-6 flex flex-col items-center justify-center gap-3 text-center">
                             <div className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -126,6 +131,7 @@ export default function Dashboard() {
                     <div className="grid gap-6 md:grid-cols-2">
                         <SafeToSpendCard />
                         <PortfolioCard />
+                        <InsightsCard />
                     </div>
                     <RecentTransactions />
                 </div>
@@ -139,9 +145,9 @@ export default function Dashboard() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-4xl font-black mb-2">$45.00</div>
+                            <div className="text-4xl font-black mb-2">${pendingTotal.toFixed(2)}</div>
                             <p className="text-primary-foreground/80 text-sm mb-4">
-                                Alex and Sarah owe you for "Ski Trip Dinner"
+                                {pendingSummary}
                             </p>
                             <Button variant="secondary" className="w-full text-primary font-bold" asChild>
                                 <Link href="/splits">

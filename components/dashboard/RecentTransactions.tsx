@@ -16,13 +16,6 @@ export function RecentTransactions() {
         <Card className="col-span-2">
             <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Recent Transactions</CardTitle>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => simulateNessieTransaction("Uber *Trip 4522", 24.50)}
-                >
-                    Simulate Uber ($24.50)
-                </Button>
             </CardHeader>
             <CardContent>
                 <Table>

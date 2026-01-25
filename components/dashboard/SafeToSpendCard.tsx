@@ -68,16 +68,16 @@ export function SafeToSpendCard() {
                 <Progress value={percent} className="h-3" />
                 <div className="mt-4 flex justify-between text-xs text-muted-foreground">
                     <div>
-                        <span className="block font-semibold text-foreground">-${breakdown.billsTotal.toFixed(2)}</span>
-                        Bills (7d)
+                        <span className="block font-semibold text-foreground">-${breakdown.billsTotal.toFixed(0)}</span>
+                        Upcoming
                     </div>
                     <div>
-                        <span className="block font-semibold text-foreground">-${breakdown.pendingSplitsOwedByUser.toFixed(2)}</span>
-                        Pending Splits
+                        <span className="block font-semibold text-foreground">-${breakdown.variableSpend.toFixed(0)}</span>
+                        Essentials (7d)
                     </div>
                     <div>
                         <span className="block font-semibold text-foreground">-${user.safetyThreshold}</span>
-                        Safety Buffer
+                        Buffer
                     </div>
                 </div>
             </CardContent>
