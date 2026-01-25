@@ -36,6 +36,7 @@ export interface Friend {
   name: string;
   phoneNumber?: string;
   avatarInitials: string;
+  nessieAccountId?: string;
 }
 
 export interface SplitRequest {

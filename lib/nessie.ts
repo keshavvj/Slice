@@ -65,6 +65,7 @@ export async function fetchInternal(endpoint: string, debug = false) {
 }
 
 export async function postInternal(endpoint: string, body: any) {
+    console.log(`[Nessie Client] Posting to ${endpoint}:`, body);
     const url = `/api/nessie/${endpoint}`;
     const res = await fetch(url, {
         method: 'POST',
@@ -76,7 +77,9 @@ export async function postInternal(endpoint: string, body: any) {
         const error = await res.json().catch(() => ({}));
         throw new Error(error.error || `Failed to post to ${endpoint} (Status: ${res.status})`);
     }
-    return res.json();
+    const data = await res.json();
+    console.log(`[Nessie Client] Response from ${endpoint}:`, data);
+    return data;
 }
 
 export const nessieClient = {
@@ -98,6 +101,14 @@ export const nessieClient = {
             status: 'pending',
             purchase_date: new Date().toISOString().split('T')[0],
             ...purchase
+        });
+    },
+
+    createTransfer: async (accountId: string, transfer: { medium: string, payee_id: string, amount: number, transaction_date?: string, description?: string }) => {
+        return postInternal(`transfers?accountId=${accountId}`, {
+            status: 'pending',
+            transaction_date: new Date().toISOString().split('T')[0],
+            ...transfer
         });
     },
 

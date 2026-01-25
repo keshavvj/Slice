@@ -218,10 +218,11 @@ export default function FriendsPage() {
                                             className="w-full bg-red-600 hover:bg-red-700 text-white"
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                if (confirm(`Are you sure you want to settle your balance of $${Math.abs(friend.net).toFixed(2)} with ${friend.name}?`)) {
-                                                    // Logic to settle would go here (e.g., mark splits as paid)
-                                                    // For MVP, just alert
-                                                    alert(`Settled $${Math.abs(friend.net).toFixed(2)} with ${friend.name}!`);
+                                                const amount = Math.abs(friend.net);
+                                                if (confirm(`Are you sure you want to settle your balance of $${amount.toFixed(2)} with ${friend.name}?`)) {
+                                                    useStore.getState().settleSplit(friend.id, amount).then(() => {
+                                                        alert(`Settled $${amount.toFixed(2)} with ${friend.name}!`);
+                                                    });
                                                 }
                                             }}
                                         >

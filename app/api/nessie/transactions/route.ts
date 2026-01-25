@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
+        console.log('[API Proxy] Creating Purchase Payload:', JSON.stringify(body, null, 2));
 
         // Forward to Nessie
         const response = await fetch(`${BASE_URL}/accounts/${accountId}/purchases?key=${apiKey}`, {

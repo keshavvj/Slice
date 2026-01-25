@@ -197,6 +197,40 @@ export const useStore = create<AppState>()(
 
                     const customer = customers[0]; // Pick first
 
+                    // Match other customers to friends or create new ones
+                    const otherCustomers = customers.slice(1);
+                    const newFriends: Friend[] = [];
+
+                    // Helper to get account for a customer
+                    // We need to fetch accounts for other customers to get their IDs
+                    // This might be slow if there are many, so we'll do it for the first few
+                    for (const otherCust of otherCustomers.slice(0, 3)) {
+                        const existingFriend = state.friends.find(f => f.name === `${otherCust.first_name} ${otherCust.last_name}`);
+
+                        try {
+                            const otherAccRes = await nessieClient.getAccounts(otherCust._id);
+                            const otherAccs = otherAccRes.data || (Array.isArray(otherAccRes) ? otherAccRes : []);
+                            const mainAcc = otherAccs.find((a: any) => a.type?.toLowerCase().includes('checking')) || otherAccs[0];
+
+                            if (mainAcc) {
+                                if (existingFriend) {
+                                    // Update existing
+                                    existingFriend.nessieAccountId = mainAcc._id;
+                                } else {
+                                    // Create new
+                                    newFriends.push({
+                                        id: `friend_${otherCust._id}`,
+                                        name: `${otherCust.first_name} ${otherCust.last_name}`,
+                                        avatarInitials: `${otherCust.first_name[0]}${otherCust.last_name[0]}`.toUpperCase(),
+                                        nessieAccountId: mainAcc._id
+                                    });
+                                }
+                            }
+                        } catch (e) {
+                            console.error("Failed to fetch friend account", e);
+                        }
+                    }
+
                     // 2. Fetch Accounts
                     const accRes = await nessieClient.getAccounts(customer._id, true);
                     const accounts = accRes.data || (Array.isArray(accRes) ? accRes : []);
@@ -238,7 +272,7 @@ export const useStore = create<AppState>()(
                     const mappedTransactions: Transaction[] = allActivity.map((p: any) => ({
                         id: p._id || p.id,
                         date: p.purchase_date || p.transaction_date || p.date || new Date().toISOString().split('T')[0],
-                        merchant_name: p.merchant_id ? `Merchant ${p.merchant_id.substring(0, 6)}` : (p.description || "Unknown Activity"),
+                        merchant_name: p.merchant_id ? `Merchant ${p.merchant_id.substring(0, 6)}` : (p.description || p.payee_id || "Unknown Activity"),
                         amount: p.amount,
                         category: p.type || 'transaction',
                         status: 'posted' as const,
@@ -260,6 +294,10 @@ export const useStore = create<AppState>()(
                         lastFetchSamples: debugSamples,
                         transactions: mappedTransactions,
                         bills: mappedBills, // Strict: only use Nessie bills if connected
+                        friends: [...state.friends.map(f => {
+                            const match = newFriends.find(nf => nf.id === f.id); // Re-map if needed or just use current state because we mutated above (not ideal but quick fix)
+                            return f;
+                        }), ...newFriends],
                         user: {
                             ...state.user,
                             checkingBalance: checkingAccount.balance,
@@ -300,6 +338,58 @@ export const useStore = create<AppState>()(
                     accountId: state.selectedAccountId || 'demo_account'
                 };
                 get().addTransaction(newTx);
+            },
+
+            settleSplit: async (friendId: string, amount: number) => {
+                const state = get();
+                const friend = state.friends.find(f => f.id === friendId);
+                const roundedAmount = Number(amount.toFixed(2));
+
+                console.log(`[Store] Attempting Settle: Friend=${friend?.name}, Amount=${roundedAmount}, Payer=${state.selectedAccountId}, Payee=${friend?.nessieAccountId}`);
+
+                // 1. Nessie Transfer
+                if (state.nessieConnected && state.selectedAccountId && friend?.nessieAccountId) {
+                    try {
+                        await nessieClient.createTransfer(state.selectedAccountId, {
+                            medium: "balance",
+                            payee_id: friend.nessieAccountId,
+                            amount: roundedAmount,
+                            description: "Slice Settle Up"
+                        });
+                        // Re-sync
+                        setTimeout(() => get().syncNessieData(true), 1000);
+                    } catch (e) {
+                        console.error("Friend Settle API call failed", e);
+                        // We might want to alert here but we are in store context
+                    }
+                } else {
+                    console.warn("[Store] Settle skipped - Missing connection details", {
+                        connected: state.nessieConnected,
+                        hasPayer: !!state.selectedAccountId,
+                        hasPayee: !!friend?.nessieAccountId
+                    });
+                }
+
+                // 2. Local State Update (Mark splits as paid)
+                // In a real app we'd link specific requests, here we just find pending ones sum up to amount or similar.
+                // For simplicity, we mark ALL pending 'owed by me' requests for this friend as paid
+                // up to the amount? Or just all of them because "Settle Up" usually means everything.
+
+                set((state) => ({
+                    splitRequests: state.splitRequests.map(req => {
+                        if (req.friendId === friendId && req.requesterId !== friendId && req.status === 'pending') {
+                            // User owes friend
+                            return { ...req, status: 'paid' };
+                        }
+                        if (req.requesterId === friendId && req.friendId !== friendId && req.status === 'pending') {
+                            // Wait, logic check: splitRequests: requesterId (who paid original), friendId (who owes).
+                            // If friend paid (requester=friend), user owes.
+                            // So if requesterId === friendId, user owes.
+                            return { ...req, status: 'paid' };
+                        }
+                        return req;
+                    })
+                }));
             },
 
             resetAll: () => {
