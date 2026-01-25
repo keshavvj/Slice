@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { SafeToSpendCard } from '@/components/dashboard/SafeToSpendCard';
 import { PortfolioCard } from '@/components/dashboard/PortfolioCard';
-import { InsightsCard } from '@/components/dashboard/InsightsCard';
+import { AIInsightsCards } from '@/components/dashboard/AIInsightsCards';
 import { RecentTransactions } from '@/components/dashboard/RecentTransactions';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useStore } from '@/lib/store';
@@ -122,11 +122,9 @@ export default function Dashboard() {
                     <div className="grid gap-6 md:grid-cols-2">
                         <SafeToSpendCard />
                         <PortfolioCard />
-                        <InsightsCard />
                     </div>
                     <RecentTransactions />
                 </div>
-
                 {/* Right Column (Social/Status) */}
                 <div className="space-y-6">
                     <Card className="bg-gradient-to-br from-primary to-violet-600 text-primary-foreground border-none shadow-xl">
@@ -147,6 +145,8 @@ export default function Dashboard() {
                             </Button>
                         </CardContent>
                     </Card>
+
+                    <AIInsightsCards />
 
                     <SocialFeedMock />
                 </div>
