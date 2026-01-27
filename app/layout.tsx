@@ -4,6 +4,7 @@ import "./globals.css";
 import { AppLayout } from "@/components/AppLayout";
 import { StoreHydration } from "@/components/StoreHydration";
 import { Providers } from "@/components/Providers";
+import { ChatBot } from "@/components/ChatBot";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,6 +34,7 @@ export default function RootLayout({
         <Providers>
           <StoreHydration />
           <AppLayout>{children}</AppLayout>
+          <ChatBot />
         </Providers>
       </body>
     </html>

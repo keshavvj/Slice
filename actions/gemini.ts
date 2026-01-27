@@ -13,6 +13,11 @@ export interface AIInsight {
     isAiGenerated?: boolean;
 }
 
+export interface ChatMessage {
+    role: 'user' | 'model';
+    content: string;
+}
+
 export async function generateAIInsights(state: Partial<AppState>): Promise<AIInsight[]> {
     const apiKey = process.env.GOOGLE_API_KEY;
 
@@ -79,10 +84,9 @@ export async function generateAIInsights(state: Partial<AppState>): Promise<AIIn
     } catch (error: any) {
         console.error("[Gemini] Generation failed details:", error.message || error);
         if (error.response) {
-            // Log response body if available for easier debugging
             try {
                 const errorBody = await error.response.text();
-                console.error("[Gemini] Error response body:", errorBody);
+                // console.error("[Gemini] Error response body:", errorBody);
             } catch (e) {
                 // ignore
             }
@@ -145,4 +149,81 @@ function getFallbackInsights(state: Partial<AppState>): AIInsight[] {
     });
 
     return insights;
+}
+
+export async function chatWithSliceBot(history: ChatMessage[], newMessage: string) {
+    const apiKey = process.env.GOOGLE_API_KEY;
+    if (!apiKey) return { text: "I'm having trouble connecting to my brain right now. Please check the API key." };
+
+    try {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+
+        // 1. Convert to Gemini History format
+        const historyForApi = history.map(h => ({
+            role: h.role === 'model' ? 'model' : 'user',
+            parts: [{ text: h.content }],
+        }));
+
+        // 2. Remove leading model messages (Gemini requirement: strict user-start alternation)
+        while (historyForApi.length > 0 && historyForApi[0].role === 'model') {
+            historyForApi.shift();
+        }
+
+        const systemPrompt = `
+            You are SliceBot, the helpful AI assistant for the Slice financial app.
+            Your goal is to help users navigate the app, understand features, and manage their finances.
+            
+            App Features:
+            - **Dashboard**: View balance, portfolio, and insights.
+            - **Splits**: Split bills with friends. specific friends owed.
+            - **Friends**: Add friends to send money or split bills.
+            - **Investing**: Auto-invest rounds ups or percentage of paychecks.
+            - **Goals**: Shared savings goals with friends.
+            
+            Keep answers short (under 50 words unless asked for detail), friendly, and helpful.
+            If asked about personal financial advice, disclaim that you are an AI.
+        `;
+
+        // 3. Start Chat with Prompt Injection
+        let chat;
+        let finalMessage = newMessage;
+
+        if (historyForApi.length > 0) {
+            // Existing conversation: Inject system prompt into the first historical message
+            // so the model retains context of who it is.
+            const firstMsg = historyForApi[0];
+            if (firstMsg.parts && firstMsg.parts[0]) {
+                firstMsg.parts[0].text = `${systemPrompt}\n\n---\n\n${firstMsg.parts[0].text}`;
+            }
+
+            chat = model.startChat({
+                history: historyForApi,
+                generationConfig: { maxOutputTokens: 300 },
+            });
+        } else {
+            // New conversation: Inject system prompt into the current message
+            chat = model.startChat({
+                history: [],
+                generationConfig: { maxOutputTokens: 300 },
+            });
+            finalMessage = `${systemPrompt}\n\nUser Question: ${newMessage}`;
+        }
+
+        const result = await chat.sendMessage(finalMessage);
+        const response = await result.response;
+        return { text: response.text() };
+
+    } catch (error: any) {
+        console.error("Chat Error Details:", error.message || error);
+        if (error.response) {
+            try {
+                const errorBody = await error.response.text();
+                console.error("Chat Error Response Body:", errorBody);
+            } catch (e) {
+                // ignore
+            }
+        }
+        return { text: "Sorry, I couldn't process that. Try again later." };
+    }
 }
