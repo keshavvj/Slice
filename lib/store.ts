@@ -4,6 +4,8 @@ import { User, Transaction, Friend, SplitRequest, Bill, Portfolio, SharedGoal, I
 import { SEED_USER, SEED_FRIENDS, SEED_TRANSACTIONS, SEED_BILLS, SEED_SPLIT_REQUESTS, SEED_PORTFOLIO, SEED_GOAL } from '@/data/seed';
 import { calculateRoundup } from './logic';
 import { nessieClient } from './nessie';
+import { computeNextRunDate } from './goals';
+import { isAfter, parseISO } from 'date-fns';
 
 export const useStore = create<AppState>()(
     persist(
@@ -124,12 +126,99 @@ export const useStore = create<AppState>()(
 
             checkAutoSplits: () => { },
 
+            updateGoalRecurring: (goalId, recurring) => set((state) => ({
+                goals: state.goals.map(g => g.id === goalId ? { ...g, recurring } : g)
+            })),
+
+            checkRecurringGoals: () => {
+                const state = get();
+                const now = new Date();
+                let hasUpdates = false;
+
+                const updatedGoals = state.goals.map(goal => {
+                    if (!goal.recurring || !goal.recurring.enabled) return goal;
+
+                    const nextRun = parseISO(goal.recurring.nextRunDateISO);
+                    // Check if due (and not already run today - primitive check, ideally strict simpler logic)
+                    if (isAfter(now, nextRun) || now.toISOString().split('T')[0] === goal.recurring.nextRunDateISO.split('T')[0]) {
+                        // Prevent multi-run on same day if logic is loose
+                        if (goal.recurring.lastRunAtISO && goal.recurring.lastRunAtISO.split('T')[0] === now.toISOString().split('T')[0]) {
+                            return goal;
+                        }
+
+                        hasUpdates = true;
+
+                        // Create contribution
+                        const newContribution = {
+                            id: `contrib_rec_${Date.now()}`,
+                            date: now.toISOString(),
+                            memberId: goal.recurring.scope === 'me' ? state.user.id : 'ALL', // Special handling needed for "ALL"
+                            amount: goal.recurring.amount,
+                            type: 'recurring' as const
+                        };
+
+                        // If scope is everyone, we might want separate entries for each member?
+                        // For MVP: let's assume "Everyone" means "Everyone contributes this amount"
+                        // But simpler MVP: Just charge the user if 'me'. 
+                        // If 'everyone', we need to loop.
+                        const contributionsToAdd: any[] = [];
+                        let totalAdded = 0;
+
+                        if (goal.recurring.scope === 'everyone') {
+                            goal.members.forEach(m => {
+                                contributionsToAdd.push({
+                                    id: `contrib_rec_${Date.now()}_${m.id}`,
+                                    date: now.toISOString(),
+                                    memberId: m.id,
+                                    amount: goal.recurring!.amount,
+                                    type: 'recurring'
+                                });
+                                totalAdded += goal.recurring!.amount;
+                            });
+                            // Don't forget current user
+                            contributionsToAdd.push({
+                                id: `contrib_rec_${Date.now()}_me`,
+                                date: now.toISOString(),
+                                memberId: state.user.id,
+                                amount: goal.recurring.amount,
+                                type: 'recurring'
+                            });
+                            totalAdded += goal.recurring.amount;
+
+                        } else {
+                            contributionsToAdd.push({ ...newContribution, memberId: state.user.id });
+                            totalAdded += goal.recurring.amount;
+                        }
+
+                        // Calculate NEXT run date
+                        const nextDate = computeNextRunDate(goal.recurring.frequency, now);
+
+                        return {
+                            ...goal,
+                            currentAmount: goal.currentAmount + totalAdded,
+                            contributions: [...contributionsToAdd, ...goal.contributions],
+                            recurring: {
+                                ...goal.recurring,
+                                lastRunAtISO: now.toISOString(),
+                                nextRunDateISO: nextDate.toISOString()
+                            }
+                        };
+                    }
+                    return goal;
+                });
+
+                if (hasUpdates) {
+                    set({ goals: updatedGoals });
+                }
+            },
+
             addGoal: (goal) => set((state) => ({
                 goals: [...state.goals, goal]
             })),
 
-            contributeToGoal: async (goalId, amount) => {
+            contributeToGoal: async (goalId, amount, memberId) => {
                 const state = get();
+                const contributorId = memberId || state.user.id;
 
                 // API Call
                 if (state.nessieConnected && state.selectedAccountId) {
@@ -166,9 +255,11 @@ export const useStore = create<AppState>()(
                     goals: state.goals.map(g => {
                         if (g.id !== goalId) return g;
                         const newContribution = {
+                            id: `contrib_${Date.now()}`,
                             date: new Date().toISOString(),
-                            memberId: state.user.id,
-                            amount: amount
+                            memberId: contributorId,
+                            amount: amount,
+                            type: 'manual' as const
                         };
                         return {
                             ...g,

@@ -12,10 +12,13 @@ import {
     TrendingUp,
     Target,
     Settings,
-    LogOut
+    LogOut,
+    Sun,
+    Moon
 } from 'lucide-react';
 import { handleSignOut } from '@/lib/actions';
 import { useSession } from "next-auth/react";
+import { useTheme } from "next-themes";
 
 const NAV_ITEMS = [
     { label: 'Dashboard', href: '/dashboard', icon: Home },
@@ -71,7 +74,28 @@ export function AppSidebar() {
                         Log Out
                     </Button>
                 </form>
+                <div className="mt-4 pt-4 border-t flex items-center justify-between px-2">
+                    <span className="text-xs text-muted-foreground font-medium px-2">Theme</span>
+                    <ThemeToggle />
+                </div>
             </div>
         </div>
     );
+}
+
+function ThemeToggle() {
+    const { setTheme, theme } = useTheme();
+
+    return (
+        <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-full"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+        >
+            <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+            <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+            <span className="sr-only">Toggle theme</span>
+        </Button>
+    )
 }

@@ -82,7 +82,22 @@ export interface SharedGoal {
   currentAmount: number;
   weeklyContribution: number;
   members: Friend[];
-  contributions: { date: string; memberId: string; amount: number }[];
+  contributions: {
+    id?: string;
+    date: string;
+    memberId: string;
+    amount: number;
+    type?: "manual" | "recurring";
+  }[];
+  recurring?: {
+    enabled: boolean;
+    frequency: "weekly" | "biweekly" | "monthly";
+    amount: number;
+    scope: "everyone" | "me";
+    startDateISO: string;
+    nextRunDateISO: string;
+    lastRunAtISO?: string;
+  };
 }
 
 export type AppState = {
@@ -114,7 +129,9 @@ export type AppState = {
   performInvestment: (amount: number, type: "roundup" | "paycheck" | "manual", description: string) => void;
   checkAutoSplits: () => void;
   addGoal: (goal: SharedGoal) => void;
-  contributeToGoal: (goalId: string, amount: number) => void;
+  contributeToGoal: (goalId: string, amount: number, memberId?: string) => void;
+  updateGoalRecurring: (goalId: string, settings: SharedGoal['recurring']) => void;
+  checkRecurringGoals: () => void;
   addFriend: (friend: Friend) => void;
   removeFriend: (id: string) => void;
 
