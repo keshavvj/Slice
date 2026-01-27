@@ -3,90 +3,104 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { AppState } from "@/types";
 
-// Initialize Gemini inside action to allow hot-reloading keys
-
 export type InsightType = "investing" | "splits" | "goals" | "spending";
 
 export interface AIInsight {
     type: InsightType;
     title: string;
     message: string;
-    metric?: string;
     action?: string;
+    isAiGenerated?: boolean;
 }
 
-export async function generateAIInsights(state: Partial<AppState>) {
-    // Debug logging
-    console.log("[Gemini] Check API Key:", process.env.GOOGLE_API_KEY ? "Present" : "Missing");
+export async function generateAIInsights(state: Partial<AppState>): Promise<AIInsight[]> {
+    const apiKey = process.env.GOOGLE_API_KEY;
 
-    if (!process.env.GOOGLE_API_KEY) {
-        console.log("[Gemini] No API Key found, using fallback");
+    // Basic validation to warn in logs
+    if (!apiKey) {
+        console.warn("[Gemini] No API Key found in environment variables.");
         return getFallbackInsights(state);
     }
 
     try {
-        console.log("[Gemini] Attempting generation...");
-        // Initialize inside function to ensure fresh Env var usage
-        const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+
+        // Prepare a concise but rich context
+        const context = {
+            user: {
+                name: state.user?.name || "User",
+                balance: state.user?.checkingBalance,
+                investDest: state.user?.investDestination,
+                stocks: state.user?.selectedStocks?.join(", ")
+            },
+            portfolio: {
+                balance: state.portfolio?.balance,
+                change: state.portfolio?.weeklyChangePercent
+            },
+            splits: {
+                owedToUser: state.splitRequests?.filter(r => r.requesterId === state.user?.id && r.status === 'pending').length,
+                userOwes: state.splitRequests?.filter(r => r.friendId === state.user?.id && r.status === 'pending').length,
+            },
+            goals: state.goals?.map(g => ({ name: g.name, current: g.currentAmount, target: g.targetAmount })),
+            recentTransactions: state.transactions?.slice(0, 8).map(t => `${t.merchant_name} ($${t.amount})`)
+        };
 
         const prompt = `
-      You are an AI financial assistant for a dashboard app called Slice. 
-      Analyze the following user data and generate 4 specific insights in strictly valid JSON format.
-      
-      User Data:
-      - Name: ${state.user?.name}
-      - Balance: ${state.user?.checkingBalance}
-      - Portfolio Balance: ${state.portfolio?.balance} (Weekly change: ${state.portfolio?.weeklyChangePercent}%)
-      - Split Requests (Owed by user): ${JSON.stringify(state.splitRequests?.filter(r => r.friendId === state.user?.id && r.status === 'pending').length)}
-      - Split Requests (Owed to user): ${JSON.stringify(state.splitRequests?.filter(r => r.requesterId === state.user?.id && r.status === 'pending').length)}
-      - Active Goals: ${JSON.stringify(state.goals?.map(g => ({ name: g.name, current: g.currentAmount, target: g.targetAmount })))}
-      - Recent Transactions: ${JSON.stringify(state.transactions?.slice(0, 5))}
+            Act as an intelligent financial sidekick for the "Slice" app. 
+            Analyze the user's financial snapshot below and generate 4 specific, actionable insights.
 
-      Requirements:
-      Generate an array of 4 objects with keys: "type", "title", "message".
-      1. Type "investing": Top Mover/Status. E.g. "Growth Portfolio up 2.4%".
-      2. Type "splits": Summary of what is owed. E.g. "You're owed $86".
-      3. Type "goals": Progress on one goal. E.g. "Emergency Fund 72% complete".
-      4. Type "spending": Smart behavioral tip based on transactions or balance. E.g. "Spent $145 on dining".
+            User Context: ${JSON.stringify(context)}
 
-      Keep tone professional, friendly, concise. No emojis in the message text.
-      
-      Output strictly JSON:
-      [
-        { "type": "investing", "title": "...", "message": "..." },
-        { "type": "splits", "title": "...", "message": "..." },
-        { "type": "goals", "title": "...", "message": "..." },
-        { "type": "spending", "title": "...", "message": "..." }
-      ]
-    `;
+            Requirements:
+            1. Return strictly a JSON array of 4 objects.
+            2. Schema: { "type": "investing"|"splits"|"goals"|"spending", "title": "Short Title", "message": "Concise, friendly advice." }
+            3. Tone: Professional but conversational (Gen Z friendly).
+            4. Logic:
+               - "investing": Comment on portfolio performance or suggest investing more if balance is high.
+               - "splits": Remind them to collect owed money or pay friends.
+               - "goals": Encourage progress on specific goals.
+               - "spending": Spot patterns in recent transactions (e.g., "Too much coffee?").
+            
+            Strictly valid JSON output only. No markdown formatting.
+        `;
 
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
-        console.log("[Gemini] Raw response:", text.substring(0, 100) + "...");
 
-        // Cleanup markdown if present
+        // Cleanup markdown if present (Gemini sometimes adds \`\`\`json ...)
         const jsonStr = text.replace(/```json/g, "").replace(/```/g, "").trim();
         const insights = JSON.parse(jsonStr);
-        return insights as AIInsight[];
 
-    } catch (error) {
-        console.error("Gemini Insight Error:", error);
+        // Append the flag
+        return insights.map((i: any) => ({ ...i, isAiGenerated: true }));
+
+    } catch (error: any) {
+        console.error("[Gemini] Generation failed details:", error.message || error);
+        if (error.response) {
+            // Log response body if available for easier debugging
+            try {
+                const errorBody = await error.response.text();
+                console.error("[Gemini] Error response body:", errorBody);
+            } catch (e) {
+                // ignore
+            }
+        }
         return getFallbackInsights(state);
     }
 }
 
 function getFallbackInsights(state: Partial<AppState>): AIInsight[] {
-    // Fallback heuristic generation if AI fails or no key
     const insights: AIInsight[] = [];
 
     // 1. Investing
     const change = state.portfolio?.weeklyChangePercent || 0;
     insights.push({
         type: "investing",
-        title: change >= 0 ? "Portfolio Growing" : "Market Dip",
-        message: `Your portfolio is ${change >= 0 ? "up" : "down"} ${Math.abs(change)}% this week.`
+        title: change >= 0 ? "Portfolio Green" : "Market Dip",
+        message: `Your portfolio is ${change >= 0 ? "up" : "down"} ${Math.abs(change)}% this week. Keep it up!`,
+        isAiGenerated: false
     });
 
     // 2. Splits
@@ -96,44 +110,38 @@ function getFallbackInsights(state: Partial<AppState>): AIInsight[] {
 
     insights.push({
         type: "splits",
-        title: "Split Requests",
+        title: "Pending Splits",
         message: owedToMe > 0
-            ? `You are owed $${owedToMe.toFixed(0)} across active splits.`
-            : "You are all settled up with friends."
+            ? `Friends owe you $${owedToMe.toFixed(0)}. Send a reminder?`
+            : "You are all settled up with friends.",
+        isAiGenerated: false
     });
 
     // 3. Goals
     const goal = state.goals?.[0];
-    if (goal) {
+    if (goal && goal.targetAmount > 0) {
         const percent = Math.round((goal.currentAmount / goal.targetAmount) * 100);
         insights.push({
             type: "goals",
-            title: "Goal Progress",
-            message: `${goal.name} is ${percent}% complete.`
+            title: goal.name,
+            message: `You're ${percent}% of the way there!`,
+            isAiGenerated: false
         });
     } else {
         insights.push({
             type: "goals",
-            title: "Set a Goal",
-            message: "Create a savings goal to track your progress."
+            title: "Create a Goal",
+            message: "Start saving for something special today.",
+            isAiGenerated: false
         });
     }
 
-    // 4. Spending - Randomize Fallback Tip
-    const tips = [
-        "Check your recurring subscriptions to save money.",
-        "Try the 50/30/20 rule: 50% needs, 30% wants, 20% savings.",
-        "Cooking at home 2 more times a week could save $150/mo.",
-        "Set up auto-transfer to your savings account on payday.",
-        "Review your transaction history for duplicate charges.",
-        "Using a credit card with rewards can earn you 1-2% back."
-    ];
-    const randomTip = tips[Math.floor(Math.random() * tips.length)];
-
+    // 4. Spending
     insights.push({
         type: "spending",
-        title: "Smart Tip",
-        message: randomTip
+        title: "Daily Tip",
+        message: "Try the 50/30/20 rule to optimize your savings this month.",
+        isAiGenerated: false
     });
 
     return insights;
