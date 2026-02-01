@@ -10,6 +10,16 @@ export interface FinnhubQuote {
     t: number; // Timestamp
 }
 
+export interface FinnhubCandles {
+    c: number[];
+    h: number[];
+    l: number[];
+    o: number[];
+    s: string;
+    t: number[];
+    v: number[];
+}
+
 
 const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
 
