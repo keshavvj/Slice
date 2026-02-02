@@ -28,6 +28,10 @@ export default function SplitsPage() {
         setSuggestions(detected);
     }, [transactions, splitRequests]);
 
+    React.useEffect(() => {
+        useStore.getState().fetchSplits();
+    }, []);
+
     const handleCreateSplit = () => {
         if (!selectedTxId || selectedFriendIds.length === 0) return;
 

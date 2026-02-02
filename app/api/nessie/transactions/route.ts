@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/currentUser';
 
 const BASE_URL = 'http://api.nessieisreal.com';
 
 export async function GET(request: NextRequest) {
+    try {
+        // Authenticate User
+        await requireUser();
+    } catch {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const apiKey = process.env.NESSIE_API_KEY;
     const searchParams = request.nextUrl.searchParams;
     const accountId = searchParams.get('accountId');
@@ -51,6 +59,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+    try {
+        await requireUser();
+    } catch {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const apiKey = process.env.NESSIE_API_KEY;
     const searchParams = request.nextUrl.searchParams;
     const accountId = searchParams.get('accountId');

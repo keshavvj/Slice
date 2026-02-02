@@ -1,5 +1,8 @@
 export interface User {
   id: string;
+  auth0Id?: string;
+  handle?: string;
+  displayName?: string;
   name: string;
   email: string;
   avatarUrl?: string; // e.g. /avatars/user.png
@@ -140,5 +143,8 @@ export type AppState = {
   simulatePaycheck: (overrideAmount?: number) => Promise<void>;
   settleSplit: (friendId: string, amount: number) => Promise<void>;
   sendMoney: (friendId: string, amount: number, note: string) => Promise<void>;
+  fetchIdentity: () => Promise<void>;
+  fetchGoals: () => Promise<void>;
+  fetchSplits: () => Promise<void>;
   resetAll: () => void;
 };

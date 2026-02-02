@@ -48,19 +48,94 @@ export const useStore = create<AppState>()(
                 }
             },
 
-            createSplitRequest: (req) => set((state) => ({
-                splitRequests: [req, ...state.splitRequests]
-            })),
+            fetchSplits: async () => {
+                try {
+                    const res = await fetch('/api/splits');
+                    if (res.ok) {
+                        const data = await res.json();
+                        // API returns { sent: [], received: [] }
+                        // Store expects flat list of SplitRequest
+                        const sent = data.sent.map((s: any) => ({
+                            id: s.id,
+                            transactionId: 'manual', // DB doesn't link to TX yet directly in MVP, or s.txId
+                            requesterId: s.fromUserId,
+                            friendId: s.toUserId,
+                            totalAmount: s.amount, // Approximate
+                            amountOwed: s.amount,
+                            status: s.status,
+                            createdAt: s.createdAt
+                        }));
+                        const received = data.received.map((s: any) => ({
+                            id: s.id,
+                            transactionId: 'manual',
+                            requesterId: s.fromUserId,
+                            friendId: s.toUserId,
+                            totalAmount: s.amount,
+                            amountOwed: s.amount,
+                            status: s.status,
+                            createdAt: s.createdAt
+                        }));
+                        set({ splitRequests: [...sent, ...received] });
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch splits", e);
+                }
+            },
 
-            markSplitPaid: (id) => set((state) => ({
-                splitRequests: state.splitRequests.map(r =>
-                    r.id === id ? { ...r, status: 'paid' } : r
-                )
-            })),
+            createSplitRequest: async (req) => {
+                try {
+                    const res = await fetch('/api/splits', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            splits: [{
+                                friendId: req.friendId,
+                                amount: req.amountOwed,
+                                description: 'Split Request',
+                                payerId: req.requesterId
+                            }]
+                        })
+                    });
+
+                    if (res.ok) {
+                        get().fetchSplits();
+                    }
+                } catch (e) {
+                    console.error("Failed to create split", e);
+                }
+            },
+
+            markSplitPaid: async (id) => {
+                try {
+                    const res = await fetch(`/api/splits/${id}/settle`, {
+                        method: 'POST'
+                    });
+                    if (res.ok) {
+                        get().fetchSplits();
+                    }
+                } catch (e) {
+                    console.error("Failed to settle split", e);
+                }
+            },
 
             updateUserParams: (params) => set((state) => ({
                 user: { ...state.user, ...params }
             })),
+
+            fetchIdentity: async () => {
+                try {
+                    const res = await fetch('/api/me');
+                    if (res.ok) {
+                        const data = await res.json();
+                        set((state) => ({
+                            user: { ...state.user, ...data }
+                        }));
+                        console.log("Identity fetched:", data);
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch identity", e);
+                }
+            },
 
             toggleStock: (symbol) => set((state) => {
                 const current = state.user.selectedStocks || [];
@@ -212,62 +287,100 @@ export const useStore = create<AppState>()(
                 }
             },
 
-            addGoal: (goal) => set((state) => ({
-                goals: [...state.goals, goal]
-            })),
-
-            contributeToGoal: async (goalId, amount, memberId) => {
-                const state = get();
-                const contributorId = memberId || state.user.id;
-
-                // API Call
-                if (state.nessieConnected && state.selectedAccountId) {
-                    try {
-                        await nessieClient.createPurchase(state.selectedAccountId, {
-                            merchant_id: "57cf75ce2e25f755279b6343", // Using generic ID
-                            amount: amount,
-                            description: `Goal Contribution: ${state.goals.find(g => g.id === goalId)?.name || 'Savings'}`,
-                            medium: "balance"
-                        });
-                        setTimeout(() => get().syncNessieData(true), 1000);
-                    } catch (e) {
-                        console.error("Goal Contribution API call failed", e);
+            fetchGoals: async () => {
+                try {
+                    const res = await fetch('/api/goals');
+                    if (res.ok) {
+                        const data = await res.json();
+                        // Map API response to SharedGoal type if needed, or use as is if compatible
+                        // Current SharedGoal type has detailed structure. API returns Prisma Goal with relations.
+                        // We need to map it.
+                        const mappedGoals: SharedGoal[] = data.goals.map((g: any) => ({
+                            id: g.id,
+                            name: g.title,
+                            targetAmount: g.targetAmount,
+                            currentAmount: g.currentAmount,
+                            weeklyContribution: 0, // Not in DB yet, inferred or calculated?
+                            members: g.members.map((m: any) => ({
+                                id: m.user.id,
+                                name: m.user.displayName || m.user.handle,
+                                avatarInitials: (m.user.displayName || m.user.handle || 'U')[0].toUpperCase(),
+                                role: m.role
+                            })),
+                            contributions: g.contributions.map((c: any) => ({
+                                id: c.id,
+                                date: c.createdAt,
+                                memberId: c.userId,
+                                amount: c.amount,
+                                type: c.type
+                            })),
+                            recurring: g.recurringEnabled ? {
+                                enabled: true,
+                                frequency: g.recurringFrequency as any,
+                                amount: g.recurringAmount || 0,
+                                scope: 'me', // Defaulting for now
+                                startDateISO: g.createdAt,
+                                nextRunDateISO: g.recurringNextRun || g.createdAt
+                            } : undefined
+                        }));
+                        set({ goals: mappedGoals });
                     }
+                } catch (e) {
+                    console.error("Failed to fetch goals", e);
                 }
+            },
 
-                // Local Update
-                const newTx: Transaction = {
-                    id: `tx_goal_${Date.now()}`,
-                    date: new Date().toISOString(),
-                    merchant_name: "Goal Contribution",
-                    category: "Savings",
-                    amount: amount,
-                    status: "posted",
-                    accountId: state.selectedAccountId || "demo_account"
-                };
+            addGoal: async (goal) => {
+                try {
+                    const res = await fetch('/api/goals', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            title: goal.name,
+                            targetAmount: goal.targetAmount,
+                            category: "General",
+                            members: goal.members.map(m => m.id)
+                        })
+                    });
 
-                set((state) => ({
-                    user: {
-                        ...state.user,
-                        checkingBalance: state.user.checkingBalance - amount
-                    },
-                    transactions: [newTx, ...state.transactions],
-                    goals: state.goals.map(g => {
-                        if (g.id !== goalId) return g;
-                        const newContribution = {
-                            id: `contrib_${Date.now()}`,
+                    if (res.ok) {
+                        get().fetchGoals(); // Refresh list
+                    }
+                } catch (e) {
+                    console.error("Failed to create goal", e);
+                }
+            },
+
+            contributeToGoal: async (goalId, amount) => { // Removed memberId
+                try {
+                    // API Call
+                    const res = await fetch(`/api/goals/${goalId}/contribute`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ amount, type: 'manual' })
+                    });
+
+                    if (res.ok) {
+                        // Optimistic or Refresh
+                        get().fetchGoals();
+
+                        // Deduct from balance locally or refetch identity/transactions
+                        // For now, let's just create a local tx for feedback
+                        const state = get();
+                        const newTx: Transaction = {
+                            id: `tx_goal_${Date.now()}`,
                             date: new Date().toISOString(),
-                            memberId: contributorId,
+                            merchant_name: "Goal Contribution",
+                            category: "Savings",
                             amount: amount,
-                            type: 'manual' as const
+                            status: "posted",
+                            accountId: state.selectedAccountId || "demo_account"
                         };
-                        return {
-                            ...g,
-                            currentAmount: g.currentAmount + amount,
-                            contributions: [newContribution, ...g.contributions]
-                        };
-                    }),
-                }));
+                        state.addTransaction(newTx);
+                    }
+                } catch (e) {
+                    console.error("Goal Contribution API call failed", e);
+                }
             },
 
             addFriend: (friend) => set((state) => ({
@@ -398,10 +511,7 @@ export const useStore = create<AppState>()(
                         lastFetchSamples: debugSamples,
                         transactions: mappedTransactions,
                         bills: mappedBills, // Strict: only use Nessie bills if connected
-                        friends: [...state.friends.map(f => {
-                            const match = newFriends.find(nf => nf.id === f.id); // Re-map if needed or just use current state because we mutated above (not ideal but quick fix)
-                            return f;
-                        }), ...newFriends],
+                        friends: [...state.friends, ...newFriends], // Simplified join
                         user: {
                             ...state.user,
                             checkingBalance: checkingAccount.balance,
@@ -516,7 +626,7 @@ export const useStore = create<AppState>()(
                 const friend = state.friends.find(f => f.id === friendId);
                 const roundedAmount = Number(amount.toFixed(2));
 
-                console.log(`[Store] Attempting Settle: Friend=${friend?.name}, Amount=${roundedAmount}, Payer=${state.selectedAccountId}, Payee=${friend?.nessieAccountId}`);
+                console.log(`[Store] Attempting Settle: Friend=${friend?.name || 'Unknown'}, Amount=${roundedAmount}`);
 
                 // 1. Nessie Transfer
                 if (state.nessieConnected && state.selectedAccountId && friend?.nessieAccountId) {
@@ -527,40 +637,22 @@ export const useStore = create<AppState>()(
                             amount: roundedAmount,
                             description: "Slice Settle Up"
                         });
-                        // Re-sync
                         setTimeout(() => get().syncNessieData(true), 1000);
                     } catch (e) {
                         console.error("Friend Settle API call failed", e);
-                        // We might want to alert here but we are in store context
                     }
-                } else {
-                    console.warn("[Store] Settle skipped - Missing connection details", {
-                        connected: state.nessieConnected,
-                        hasPayer: !!state.selectedAccountId,
-                        hasPayee: !!friend?.nessieAccountId
-                    });
                 }
 
-                // 2. Local State Update (Mark splits as paid)
-                // In a real app we'd link specific requests, here we just find pending ones sum up to amount or similar.
-                // For simplicity, we mark ALL pending 'owed by me' requests for this friend as paid
-                // up to the amount? Or just all of them because "Settle Up" usually means everything.
+                // 2. Mark pending splits as paid via API
+                const pendingOwing = state.splitRequests.filter(
+                    req => req.requesterId === friendId && req.status === 'pending'
+                );
 
-                set((state) => ({
-                    splitRequests: state.splitRequests.map(req => {
-                        if (req.friendId === friendId && req.requesterId !== friendId && req.status === 'pending') {
-                            // User owes friend
-                            return { ...req, status: 'paid' };
-                        }
-                        if (req.requesterId === friendId && req.friendId !== friendId && req.status === 'pending') {
-                            // Wait, logic check: splitRequests: requesterId (who paid original), friendId (who owes).
-                            // If friend paid (requester=friend), user owes.
-                            // So if requesterId === friendId, user owes.
-                            return { ...req, status: 'paid' };
-                        }
-                        return req;
-                    })
-                }));
+                for (const req of pendingOwing) {
+                    await get().markSplitPaid(req.id);
+                }
+
+                get().fetchSplits();
 
                 // 3. Create Local Transaction Record
                 const newTx: Transaction = {

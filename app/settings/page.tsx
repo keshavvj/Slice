@@ -27,6 +27,47 @@ export default function SettingsPage() {
         setIsSyncing(false);
     };
 
+    // Handle Management
+    const [handleInput, setHandleInput] = React.useState("");
+    const [isUpdatingHandle, setIsUpdatingHandle] = React.useState(false);
+
+    // Initial fetch of handle from DB via health check or profile
+    // For now, we rely on what we have, but we should fetch the latest handle
+    React.useEffect(() => {
+        // Fetch current handle from verification endpoint
+        fetch('/api/health/auth').then(res => res.json()).then(data => {
+            if (data.handle) {
+                setHandleInput(data.handle);
+                updateUserParams({ handle: data.handle });
+            } else if (auth0User?.nickname) {
+                // Fallback if DB doesn't have it yet? but requireUser guarantees it
+            }
+        });
+    }, []);
+
+    const updateHandle = async () => {
+        if (!handleInput || handleInput.length < 3) return;
+        setIsUpdatingHandle(true);
+        try {
+            const res = await fetch('/api/user/profile', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ handle: handleInput })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                alert("Handle updated!");
+                updateUserParams({ handle: handleInput });
+            } else {
+                alert(`Error: ${data.error}`);
+            }
+        } catch (err) {
+            alert("Failed to update handle");
+        } finally {
+            setIsUpdatingHandle(false);
+        }
+    };
+
     return (
         <div className="space-y-6">
             <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
@@ -76,12 +117,38 @@ export default function SettingsPage() {
                 <CardHeader><CardTitle>Profile & Preferences</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                     <div className="space-y-1">
+                        <Label htmlFor="handle">Slice Handle</Label>
+                        <div className="flex gap-2">
+                            <div className="relative flex-1">
+                                <span className="absolute left-3 top-2.5 text-muted-foreground">@</span>
+                                <Input
+                                    id="handle"
+                                    value={handleInput}
+                                    onChange={(e) => setHandleInput(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                                    className="pl-7"
+                                    placeholder="your_handle"
+                                />
+                            </div>
+                            <Button
+                                onClick={updateHandle}
+                                disabled={isUpdatingHandle || handleInput === (auth0User?.nickname || user.handle)}
+                                variant="outline"
+                            >
+                                {isUpdatingHandle ? "Saving..." : "Update"}
+                            </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            Unique handle for friends to find you. 3-20 characters.
+                        </p>
+                    </div>
+
+                    <div className="space-y-1">
                         <Label htmlFor="name">Display Name</Label>
-                        <Input id="name" defaultValue={user?.name || ''} disabled />
+                        <Input id="name" defaultValue={user?.name || auth0User?.name || ''} disabled />
                     </div>
                     <div className="space-y-1">
                         <Label htmlFor="email">Email Address</Label>
-                        <Input id="email" defaultValue={user?.email || ''} disabled />
+                        <Input id="email" defaultValue={user?.email || auth0User?.email || ''} disabled />
                     </div>
                     <div className="grid gap-2">
                         <label className="text-sm font-medium">Safe-to-Spend Buffer ($)</label>

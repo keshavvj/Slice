@@ -21,11 +21,27 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
 
 export function NewGoalDialog() {
-    const { addGoal, friends } = useStore();
+    const { addGoal } = useStore(); // Don't use store friends, fetch fresh list
     const [open, setOpen] = React.useState(false);
     const [name, setName] = React.useState('');
     const [targetAmount, setTargetAmount] = React.useState('');
     const [selectedFriendIds, setSelectedFriendIds] = React.useState<string[]>([]);
+    const [availableFriends, setAvailableFriends] = React.useState<any[]>([]);
+
+    React.useEffect(() => {
+        if (open) {
+            const fetchFriends = async () => {
+                try {
+                    const res = await fetch('/api/friends');
+                    if (res.ok) {
+                        const data = await res.json();
+                        setAvailableFriends(data.friends || []);
+                    }
+                } catch (e) { console.error(e); }
+            };
+            fetchFriends();
+        }
+    }, [open]);
 
     const toggleFriend = (id: string) => {
         setSelectedFriendIds(prev =>
@@ -36,10 +52,20 @@ export function NewGoalDialog() {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
-        const selectedFriends = friends.filter(f => selectedFriendIds.includes(f.id));
+        // We construct a SharedGoal to pass to addGoal
+        // Note: addGoal now calls API which needs member IDs. 
+        // We just need to conform to SharedGoal type for the store method sig, 
+        // or we trust addGoal handles it.
+        // Our updated addGoal takes { members: Friend[] ... } so we map back.
+
+        const selectedFriends = availableFriends.filter(f => selectedFriendIds.includes(f.id)).map(f => ({
+            id: f.id,
+            name: f.displayName || f.handle || f.name,
+            avatarInitials: (f.displayName || f.handle || f.name || 'U')[0].toUpperCase()
+        }));
 
         const newGoal: SharedGoal = {
-            id: `goal_${Date.now()}`,
+            id: `temp_${Date.now()}`, // will be replaced by API
             name,
             targetAmount: Number(targetAmount),
             currentAmount: 0,
@@ -49,8 +75,6 @@ export function NewGoalDialog() {
         };
 
         addGoal(newGoal);
-        setOpen(false);
-        setName('');
         setOpen(false);
         setName('');
         setTargetAmount('');
@@ -107,11 +131,14 @@ export function NewGoalDialog() {
                             </Label>
                             <div className="col-span-3 space-y-2">
                                 <div className="max-h-[200px] overflow-y-auto border rounded-md p-2 space-y-1">
-                                    {friends.length === 0 ? (
+                                    {availableFriends.length === 0 ? (
                                         <p className="text-sm text-muted-foreground p-2">No friends yet. Add some in the Friends tab!</p>
                                     ) : (
-                                        friends.map(friend => {
+                                        availableFriends.map(friend => {
                                             const isSelected = selectedFriendIds.includes(friend.id);
+                                            const displayName = friend.displayName || friend.handle || friend.name;
+                                            const initials = (displayName || 'U')[0].toUpperCase();
+
                                             return (
                                                 <div
                                                     key={friend.id}
@@ -120,9 +147,9 @@ export function NewGoalDialog() {
                                                 >
                                                     <div className="flex items-center gap-3">
                                                         <Avatar className="h-8 w-8 border">
-                                                            <AvatarFallback className="text-xs">{friend.avatarInitials}</AvatarFallback>
+                                                            <AvatarFallback className="text-xs">{initials}</AvatarFallback>
                                                         </Avatar>
-                                                        <span className="text-sm font-medium">{friend.name}</span>
+                                                        <span className="text-sm font-medium">{displayName}</span>
                                                     </div>
                                                     {isSelected && <Check className="h-4 w-4 text-primary" />}
                                                 </div>

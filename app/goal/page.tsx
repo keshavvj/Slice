@@ -14,11 +14,12 @@ import { ArrowUpRight, Trophy, Target, TrendingUp } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function GoalsPage() {
-    const { goals, user, checkRecurringGoals } = useStore();
+    const { goals, user, checkRecurringGoals, fetchGoals } = useStore();
 
     React.useEffect(() => {
+        fetchGoals();
         checkRecurringGoals();
-    }, [checkRecurringGoals]);
+    }, [checkRecurringGoals, fetchGoals]);
 
     const totalSaved = goals.reduce((acc, g) => acc + g.currentAmount, 0);
     const totalTarget = goals.reduce((acc, g) => acc + g.targetAmount, 0);

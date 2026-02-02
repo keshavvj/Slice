@@ -1,86 +1,134 @@
-
 'use client';
 
 import * as React from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { useStore } from '@/lib/store';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Plus, Search, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Plus, Search, Trash2, Check, X, Link as LinkIcon, Copy } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { useUser } from '@auth0/nextjs-auth0/client';
 
 export default function FriendsPage() {
-    const { friends, splitRequests, transactions, addFriend, removeFriend } = useStore();
-    // Add Friend Dialog State
+    const { user } = useUser();
+
+    // Data State
+    const [friends, setFriends] = React.useState<any[]>([]);
+    const [requests, setRequests] = React.useState<{ incoming: any[], outgoing: any[] }>({ incoming: [], outgoing: [] });
+    const [isLoading, setIsLoading] = React.useState(true);
+
+    // Add Friend / Search State
     const [isDialogOpen, setIsDialogOpen] = React.useState(false);
-    const [newFriendName, setNewFriendName] = React.useState("");
-    const [newFriendEmail, setNewFriendEmail] = React.useState("");
-    const [newFriendPhone, setNewFriendPhone] = React.useState("");
+    const [searchHandle, setSearchHandle] = React.useState("");
+    const [searchResults, setSearchResults] = React.useState<any[]>([]);
+    const [isSearching, setIsSearching] = React.useState(false);
 
-    // View/Send Money State
-    const [selectedFriend, setSelectedFriend] = React.useState<any>(null);
-    const [isSendMoneyOpen, setIsSendMoneyOpen] = React.useState(false);
-    const [sendAmount, setSendAmount] = React.useState("");
-    const [sendNote, setSendNote] = React.useState("");
-    const [searchQuery, setSearchQuery] = React.useState("");
+    // Invite State
+    const [inviteLink, setInviteLink] = React.useState<string | null>(null);
 
+    // Fetch Initial Data
+    const fetchData = React.useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const [friendsRes, requestsRes] = await Promise.all([
+                fetch('/api/friends').then(res => res.json()),
+                fetch('/api/friends/requests').then(res => res.json())
+            ]);
 
-    const handleAddFriend = () => {
-        if (!newFriendName) return;
+            if (friendsRes.friends) setFriends(friendsRes.friends);
+            if (requestsRes.incoming) setRequests(requestsRes); // API returns { incoming, outgoing }
+        } catch (error) {
+            console.error("Failed to fetch friends data", error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
-        const initials = newFriendName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+    React.useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
-        addFriend({
-            id: `friend_${Date.now()}`,
-            name: newFriendName,
-            phoneNumber: newFriendPhone,
-            avatarInitials: initials
-        });
+    // Lookup Users
+    React.useEffect(() => {
+        if (searchHandle.length < 3) {
+            setSearchResults([]);
+            return;
+        }
 
-        setIsDialogOpen(false);
-        setNewFriendName("");
-        setNewFriendEmail("");
-        setNewFriendPhone("");
+        const timer = setTimeout(async () => {
+            setIsSearching(true);
+            try {
+                const res = await fetch(`/api/users/lookup?handle=${encodeURIComponent(searchHandle)}`);
+                const data = await res.json();
+                if (data.users) setSearchResults(data.users);
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setIsSearching(false);
+            }
+        }, 500); // Debounce
+
+        return () => clearTimeout(timer);
+    }, [searchHandle]);
+
+    // Actions
+    const sendRequest = async (toUserId: string) => {
+        try {
+            const res = await fetch('/api/friends/request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ toUserId })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                if (data.status === 'already_friends') {
+                    alert('You are already friends!');
+                } else {
+                    alert('Request sent!');
+                    setIsDialogOpen(false);
+                    fetchData(); // Refresh outgoing list
+                }
+            } else {
+                alert(`Error: ${data.error}`);
+            }
+        } catch (err) {
+            alert('Failed to send request');
+        }
     };
 
-    // Calculate net balances and filter
-    const balances = friends
-        .filter(f => {
-            if (!searchQuery) return true;
-            const q = searchQuery.toLowerCase();
-            return f.name.toLowerCase().includes(q) || (f.phoneNumber && f.phoneNumber.includes(q));
-        })
-        .map(f => {
-            const txs = splitRequests.filter(r => r.friendId === f.id || r.requesterId === f.id);
-            let owedByFriend = 0;
-            let owedToFriend = 0;
-            txs.forEach(r => {
-                if (r.status === 'paid') return;
-                if (r.friendId === f.id) {
-                    owedByFriend += r.amountOwed;
-                } else {
-                    owedToFriend += r.amountOwed;
-                }
-            });
-            const net = owedByFriend - owedToFriend;
-            return { ...f, net, owedByFriend, owedToFriend };
-        });
+    const respondToRequest = async (cuid: string, action: 'accept' | 'decline') => {
+        try {
+            const res = await fetch(`/api/friends/requests/${cuid}/${action}`, { method: 'POST' });
+            if (res.ok) {
+                fetchData(); // Refresh friends list and requests
+            } else {
+                alert('Action failed');
+            }
+        } catch (err) {
+            alert('Action failed');
+        }
+    };
 
-    const handleSendMoney = async () => {
-        if (!selectedFriend || !sendAmount) return;
-        const amount = parseFloat(sendAmount);
-        if (isNaN(amount) || amount <= 0) return;
+    const createInvite = async () => {
+        try {
+            const res = await fetch('/api/friends/invite/create', { method: 'POST' });
+            const data = await res.json();
+            if (res.ok && data.url) {
+                setInviteLink(data.url);
+            }
+        } catch (err) {
+            alert('Failed to create invite');
+        }
+    };
 
-        await useStore.getState().sendMoney(selectedFriend.id, amount, sendNote);
-
-        setIsSendMoneyOpen(false);
-        setSendAmount("");
-        setSendNote("");
-        setSelectedFriend(null); // Optional: close friend view or keep open? kept open to see history update if eager
-        alert(`Sent $${amount.toFixed(2)} to ${selectedFriend.name}`);
+    const copyInvite = () => {
+        if (inviteLink) {
+            navigator.clipboard.writeText(inviteLink);
+            alert('Link copied to clipboard!');
+        }
     };
 
     return (
@@ -88,7 +136,7 @@ export default function FriendsPage() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-black tracking-tight">Friends</h1>
-                    <p className="text-muted-foreground">Keep track of your squad.</p>
+                    <p className="text-muted-foreground">Manage your connections and invites.</p>
                 </div>
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                     <DialogTrigger asChild>
@@ -100,243 +148,162 @@ export default function FriendsPage() {
                         <DialogHeader>
                             <DialogTitle>Add a Friend</DialogTitle>
                             <DialogDescription>
-                                Add someone to your Slice network to split bills and send cash.
+                                Search by their unique handle (e.g. @username)
                             </DialogDescription>
                         </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                            <div className="grid gap-2">
-                                <Label htmlFor="name">Name</Label>
+                        <div className="py-4 space-y-4">
+                            <div className="relative">
+                                <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                                 <Input
-                                    id="name"
-                                    placeholder="e.g. Sarah Jones"
-                                    value={newFriendName}
-                                    onChange={(e) => setNewFriendName(e.target.value)}
+                                    placeholder="Search handle..."
+                                    className="pl-9"
+                                    value={searchHandle}
+                                    onChange={(e) => setSearchHandle(e.target.value)}
                                 />
                             </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="email">Email (Optional)</Label>
-                                <Input
-                                    id="email"
-                                    placeholder="sarah@example.com"
-                                    value={newFriendEmail}
-                                    onChange={(e) => setNewFriendEmail(e.target.value)}
-                                />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="phone">Phone Number (Optional)</Label>
-                                <Input
-                                    id="phone"
-                                    placeholder="555-0123"
-                                    value={newFriendPhone}
-                                    onChange={(e) => setNewFriendPhone(e.target.value)}
-                                />
-                            </div>
-                        </div>
-                        <DialogFooter>
-                            <Button onClick={handleAddFriend}>Add Friend</Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
 
-                <Dialog open={isSendMoneyOpen} onOpenChange={setIsSendMoneyOpen}>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Send Money to {selectedFriend?.name}</DialogTitle>
-                            <DialogDescription>
-                                Instant transfer from your checking account.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                            <div className="grid gap-2">
-                                <Label htmlFor="amount">Amount</Label>
-                                <div className="relative">
-                                    <span className="absolute left-3 top-2.5 text-muted-foreground">$</span>
-                                    <Input
-                                        id="amount"
-                                        type="number"
-                                        placeholder="0.00"
-                                        className="pl-7"
-                                        value={sendAmount}
-                                        onChange={(e) => setSendAmount(e.target.value)}
-                                    />
-                                </div>
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="note">Note</Label>
-                                <Input
-                                    id="note"
-                                    placeholder="Pizza, Rent, etc."
-                                    value={sendNote}
-                                    onChange={(e) => setSendNote(e.target.value)}
-                                />
-                            </div>
-                        </div>
-                        <DialogFooter>
-                            <Button onClick={handleSendMoney}>Send ${sendAmount || '0.00'}</Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-            </div>
+                            {isSearching && <p className="text-sm text-center text-muted-foreground">Searching...</p>}
 
-            <div className="flex items-center gap-4 bg-background p-1 rounded-xl border max-w-md">
-                <Search className="w-5 h-5 ml-3 text-muted-foreground" />
-                <Input
-                    placeholder="Search friends by name or phone..."
-                    className="border-0 focus-visible:ring-0"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                />
-            </div>
-
-            <Dialog open={!!selectedFriend && !isSendMoneyOpen} onOpenChange={(open) => !open && setSelectedFriend(null)}>
-                <DialogContent className="max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>History with {selectedFriend?.name}</DialogTitle>
-                        <DialogDescription>Past transactions and splits.</DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-                        {selectedFriend && splitRequests
-                            .filter(r => r.friendId === selectedFriend.id || r.requesterId === selectedFriend.id)
-                            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                            .map(req => {
-                                const tx = transactions.find(t => t.id === req.transactionId);
-                                const isOwedByFriend = req.friendId === selectedFriend.id;
-                                const isPaid = req.status === 'paid';
-
-                                return (
-                                    <div key={req.id} className="flex justify-between items-center border-b pb-2 last:border-0">
-                                        <div>
-                                            <div className="font-medium">{tx?.merchant_name || 'Unknown Transaction'}</div>
-                                            <div className="text-xs text-muted-foreground">{new Date(req.createdAt).toLocaleDateString()}</div>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className={`font-bold ${isPaid ? 'text-muted-foreground line-through' : (isOwedByFriend ? 'text-green-600' : 'text-red-600')}`}>
-                                                {isOwedByFriend ? '+' : '-'}${req.amountOwed.toFixed(2)}
-                                            </div>
-                                            <div className="text-xs text-muted-foreground">
-                                                {isPaid ? 'Settled' : (isOwedByFriend ? 'They owe' : 'You owe')}
+                            <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                                {searchResults.map((user) => (
+                                    <div key={user.id} className="flex items-center justify-between p-2 rounded-lg border hover:bg-muted/50">
+                                        <div className="flex items-center gap-3">
+                                            <Avatar className="h-8 w-8">
+                                                <AvatarFallback>{user.displayName?.[0] || user.handle[0].toUpperCase()}</AvatarFallback>
+                                            </Avatar>
+                                            <div className="overflow-hidden">
+                                                <p className="text-sm font-medium leading-none truncate">{user.displayName || `@${user.handle}`}</p>
+                                                <p className="text-xs text-muted-foreground truncate">@{user.handle}</p>
                                             </div>
                                         </div>
+                                        <Button size="sm" variant="secondary" onClick={() => sendRequest(user.id)}>Add</Button>
                                     </div>
-                                );
-                            })
-                        }
-                        {selectedFriend && splitRequests.filter(r => r.friendId === selectedFriend.id || r.requesterId === selectedFriend.id).length === 0 && (
-                            <p className="text-center text-muted-foreground py-4">No history yet.</p>
+                                ))}
+                                {searchHandle.length >= 3 && searchResults.length === 0 && !isSearching && (
+                                    <p className="text-sm text-center text-muted-foreground">No users found.</p>
+                                )}
+                            </div>
+
+                            <div className="border-t pt-4">
+                                <h4 className="text-sm font-medium mb-2">Or share an invite link</h4>
+                                {inviteLink ? (
+                                    <div className="flex gap-2">
+                                        <Input readOnly value={inviteLink} className="text-xs font-mono" />
+                                        <Button size="icon" variant="outline" onClick={copyInvite}>
+                                            <Copy className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <Button variant="outline" className="w-full" onClick={createInvite}>
+                                        <LinkIcon className="mr-2 h-4 w-4" /> Generate Link
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            </div>
+
+            <Tabs defaultValue="friends" className="w-full">
+                <TabsList>
+                    <TabsTrigger value="friends">Friends ({friends.length})</TabsTrigger>
+                    <TabsTrigger value="requests">
+                        Requests
+                        {requests.incoming.length > 0 && (
+                            <Badge variant="destructive" className="ml-2 h-5 min-w-[20px] px-1 rounded-full">
+                                {requests.incoming.length}
+                            </Badge>
+                        )}
+                    </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="friends" className="mt-6">
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        {friends.map(friend => (
+                            <Card key={friend.id} className="hover:border-primary/50 transition-all cursor-pointer">
+                                <CardHeader className="flex flex-row items-center gap-4 pb-2">
+                                    <Avatar className="h-12 w-12 border-2 border-background shadow-sm">
+                                        <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-purple-400 text-white font-bold">
+                                            {friend.displayName?.[0] || friend.handle[0].toUpperCase()}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                    <div className="overflow-hidden">
+                                        <CardTitle className="text-lg truncate">{friend.displayName || `@${friend.handle}`}</CardTitle>
+                                        <p className="text-sm text-muted-foreground">@{friend.handle}</p>
+                                    </div>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-xs text-muted-foreground">
+                                        Friends since {new Date(friend.since).toLocaleDateString()}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ))}
+                        {friends.length === 0 && !isLoading && (
+                            <div className="col-span-full text-center py-12 text-muted-foreground border-2 border-dashed rounded-xl">
+                                <p>No friends yet. Add some people!</p>
+                            </div>
                         )}
                     </div>
-                    <DialogFooter>
-                        <Button
-                            className="w-full"
-                            onClick={() => setIsSendMoneyOpen(true)}
-                        >
-                            Send $
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                </TabsContent>
 
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {balances.map(friend => (
-                    <Card key={friend.id} className="group hover:border-primary/50 transition-all hover:shadow-md cursor-pointer" onClick={() => setSelectedFriend(friend)}>
-                        <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <Avatar className="h-12 w-12 border-2 border-background shadow-sm">
-                                <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-purple-400 text-white font-bold">
-                                    {friend.avatarInitials}
-                                </AvatarFallback>
-                            </Avatar>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:text-destructive hover:bg-destructive/10"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (confirm(`Are you sure you want to remove ${friend.name}?`)) {
-                                        removeFriend(friend.id);
-                                    }
-                                }}
-                            >
-                                <Trash2 className="w-5 h-5" />
-                            </Button>
-                        </CardHeader>
-                        <CardContent>
-                            <CardTitle className="text-lg mb-1">{friend.name}</CardTitle>
-                            <div className="space-y-3 mt-4">
-                                {friend.owedToFriend > 0 && (
-                                    <div className="flex items-center justify-between text-sm">
-                                        <span className="text-muted-foreground">You owe</span>
-                                        <span className="font-bold text-red-600">-${friend.owedToFriend.toFixed(2)}</span>
-                                    </div>
-                                )}
-                                {friend.owedByFriend > 0 && (
-                                    <div className="flex items-center justify-between text-sm">
-                                        <span className="text-muted-foreground">Owes you</span>
-                                        <span className="font-bold text-green-600">+${friend.owedByFriend.toFixed(2)}</span>
-                                    </div>
-                                )}
-                                <div className="pt-2 border-t flex items-center justify-between">
-                                    <span className="text-xs font-semibold uppercase text-muted-foreground">Net</span>
-                                    <span className={`font-black ${friend.net >= 0 ? "text-green-600" : "text-red-600"}`}>
-                                        {friend.net >= 0 ? '+' : '-'}${Math.abs(friend.net).toFixed(2)}
-                                    </span>
-                                </div>
-                                <div className="pt-2 flex gap-2">
-                                    <Button
-                                        className="flex-1"
-                                        variant="outline"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setSelectedFriend(friend);
-                                            setIsSendMoneyOpen(true);
-                                        }}
-                                    >
-                                        Send $
-                                    </Button>
-                                    {friend.net < 0 && (
-                                        <Button
-                                            className="flex-1 bg-red-600 hover:bg-red-700 text-white"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                const amount = Math.abs(friend.net);
-                                                if (confirm(`Are you sure you want to settle your balance of $${amount.toFixed(2)} with ${friend.name}?`)) {
-                                                    useStore.getState().settleSplit(friend.id, amount).then(() => {
-                                                        alert(`Settled $${amount.toFixed(2)} with ${friend.name}!`);
-                                                    });
-                                                }
-                                            }}
-                                        >
-                                            Settle
-                                        </Button>
-                                    )}
-                                    {friend.net > 0 && (
-                                        <Button
-                                            className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                alert(`Request sent to ${friend.name} for $${friend.net.toFixed(2)}!`);
-                                            }}
-                                        >
-                                            Request
-                                        </Button>
-                                    )}
-                                </div>
+                <TabsContent value="requests" className="mt-6 space-y-8">
+                    {/* Incoming */}
+                    <div className="space-y-4">
+                        <h3 className="text-lg font-semibold">Incoming Requests</h3>
+                        {requests.incoming.length > 0 ? (
+                            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                {requests.incoming.map(req => (
+                                    <Card key={req.id}>
+                                        <CardContent className="p-4 flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <Avatar className="h-10 w-10">
+                                                    <AvatarFallback>{req.user.handle[0].toUpperCase()}</AvatarFallback>
+                                                </Avatar>
+                                                <div>
+                                                    <p className="font-medium">{req.user.displayName || `@${req.user.handle}`}</p>
+                                                    <p className="text-xs text-muted-foreground">@{req.user.handle}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <Button size="icon" variant="ghost" className="text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => respondToRequest(req.id, 'decline')}>
+                                                    <X className="h-4 w-4" />
+                                                </Button>
+                                                <Button size="icon" variant="ghost" className="text-green-500 hover:text-green-600 hover:bg-green-50" onClick={() => respondToRequest(req.id, 'accept')}>
+                                                    <Check className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                ))}
                             </div>
-                        </CardContent>
-                    </Card>
-                ))}
-
-                {/* Add Friend Card Placeholder */}
-                <Card
-                    className="border-dashed flex flex-col items-center justify-center text-center p-6 text-muted-foreground hover:bg-muted/50 cursor-pointer transition-colors h-full min-h-[180px]"
-                    onClick={() => setIsDialogOpen(true)}
-                >
-                    <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
-                        <Plus className="w-6 h-6" />
+                        ) : <p className="text-sm text-muted-foreground">No pending requests.</p>}
                     </div>
-                    <div className="font-medium">Invite a new friend</div>
-                    <div className="text-xs mt-1">Add them to your network</div>
-                </Card>
-            </div>
+
+                    {/* Outgoing */}
+                    <div className="space-y-4 pt-4 border-t">
+                        <h3 className="text-lg font-semibold text-muted-foreground">Sent Requests</h3>
+                        {requests.outgoing.length > 0 ? (
+                            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                {requests.outgoing.map(req => (
+                                    <div key={req.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/20">
+                                        <div className="flex items-center gap-3">
+                                            <Avatar className="h-8 w-8 opacity-70">
+                                                <AvatarFallback>{req.user.handle[0].toUpperCase()}</AvatarFallback>
+                                            </Avatar>
+                                            <div>
+                                                <p className="text-sm font-medium">@{req.user.handle}</p>
+                                                <p className="text-xs text-muted-foreground">Sent {new Date(req.createdAt).toLocaleDateString()}</p>
+                                            </div>
+                                        </div>
+                                        <Badge variant="outline">Pending</Badge>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : <p className="text-sm text-muted-foreground">No sent requests.</p>}
+                    </div>
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }

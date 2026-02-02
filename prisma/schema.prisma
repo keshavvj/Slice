@@ -10,5 +10,157 @@ model User {
   id        String   @id @default(cuid())
   auth0Id   String   @unique
   email     String?
+  handle    String?  @unique
+  displayName String?
   createdAt DateTime @default(now())
+
+  // Relations
+  sentRequests     FriendRequest[] @relation("SentRequests")
+  receivedRequests FriendRequest[] @relation("ReceivedRequests")
+  
+  friendshipsA     Friendship[]    @relation("FriendshipUserA")
+  friendshipsB     Friendship[]    @relation("FriendshipUserB")
+
+  invitesCreated   FriendInvite[]  @relation("CreatedInvites")
+
+  // Goals Relations
+  goalMemberships  GoalMember[]
+  contributions    Contribution[]
+
+  // Splits Relations
+  splitMemberships SplitMember[]
+  sentSplits       SplitRequest[]  @relation("SentSplits")
+  receivedSplits   SplitRequest[]  @relation("ReceivedSplits")
+}
+
+model FriendRequest {
+  id        String   @id @default(cuid())
+  fromUserId String
+  toUserId   String
+  status    String   @default("pending") // pending, accepted, declined, canceled
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  fromUser User @relation("SentRequests", fields: [fromUserId], references: [id])
+  toUser   User @relation("ReceivedRequests", fields: [toUserId], references: [id])
+
+  @@unique([fromUserId, toUserId])
+  @@index([toUserId])
+  @@index([status])
+}
+
+model Friendship {
+  id        String   @id @default(cuid())
+  userAId   String
+  userBId   String
+  createdAt DateTime @default(now())
+
+  userA User @relation("FriendshipUserA", fields: [userAId], references: [id])
+  userB User @relation("FriendshipUserB", fields: [userBId], references: [id])
+
+  @@unique([userAId, userBId])
+}
+
+model FriendInvite {
+  id             String   @id @default(cuid())
+  code           String   @unique
+  createdByUserId String
+  status         String   @default("active") // active, disabled
+  expiresAt      DateTime?
+  createdAt      DateTime @default(now())
+
+  createdByUser User @relation("CreatedInvites", fields: [createdByUserId], references: [id])
+}
+
+// --- Goals System ---
+
+model Goal {
+  id            String   @id @default(cuid())
+  title         String
+  category      String   @default("General") // e.g., Travel, Gadget, Emergency
+  targetAmount  Float
+  currentAmount Float    @default(0)
+  currency      String   @default("USD")
+  targetDate    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Recurring contributions handling
+  recurringEnabled     Boolean @default(false)
+  recurringAmount      Float?
+  recurringFrequency   String? // weekly, biweekly, monthly
+  recurringNextRun     DateTime?
+  
+  members       GoalMember[]
+  contributions Contribution[]
+}
+
+model GoalMember {
+  id        String   @id @default(cuid())
+  goalId    String
+  userId    String
+  role      String   @default("MEMBER") // OWNER, MEMBER
+  joinedAt  DateTime @default(now())
+
+  goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([goalId, userId])
+}
+
+model Contribution {
+  id        String   @id @default(cuid())
+  goalId    String
+  userId    String
+  amount    Float
+  note      String?
+  type      String   @default("manual") // manual, recurring, roundup
+  createdAt DateTime @default(now())
+
+  goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+// --- Splits System ---
+
+model SplitGroup {
+  id        String   @id @default(cuid())
+  name      String?  // Optional group name e.g. "Vegas Trip"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members   SplitMember[]
+  requests  SplitRequest[]
+}
+
+model SplitMember {
+  id           String   @id @default(cuid())
+  splitGroupId String
+  userId       String
+  joinedAt     DateTime @default(now())
+
+  group        SplitGroup @relation(fields: [splitGroupId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id])
+
+  @@unique([splitGroupId, userId])
+}
+
+model SplitRequest {
+  id             String   @id @default(cuid())
+  splitGroupId   String?  // Optional, can be standalone
+  fromUserId     String   // The person who paid / requests money
+  toUserId       String   // The person who owes
+  amount         Float
+  description    String?
+  status         String   @default("pending") // pending, paid, declined
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  group          SplitGroup? @relation(fields: [splitGroupId], references: [id])
+  fromUser       User        @relation("SentSplits", fields: [fromUserId], references: [id])
+  toUser         User        @relation("ReceivedSplits", fields: [toUserId], references: [id])
+
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([status])
 }
