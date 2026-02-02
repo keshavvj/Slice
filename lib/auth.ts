@@ -1,7 +1,20 @@
+import { auth0 } from "@/lib/auth0";
 
-import NextAuth from "next-auth"
-import Google from "next-auth/providers/google"
+export const requireAuthSession = async () => {
+    const session = await auth0.getSession();
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
-    providers: [Google],
-})
+    if (!session || !session.user) {
+        throw new Error('Unauthorized');
+    }
+
+    return session;
+};
+
+export const getAuth0User = async () => {
+    try {
+        const session = await auth0.getSession();
+        return session?.user || null;
+    } catch (error) {
+        return null;
+    }
+}

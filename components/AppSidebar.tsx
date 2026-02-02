@@ -16,8 +16,7 @@ import {
     Sun,
     Moon
 } from 'lucide-react';
-import { handleSignOut } from '@/lib/actions';
-import { useSession } from "next-auth/react";
+import { useUser } from '@auth0/nextjs-auth0/client';
 import { useTheme } from "next-themes";
 
 const NAV_ITEMS = [
@@ -33,7 +32,7 @@ import { DASHBOARD_LOGO_DATA_URI } from "@/lib/dashboard-logo-data";
 
 export function AppSidebar() {
     const pathname = usePathname();
-    const { data: session } = useSession();
+    const { user } = useUser();
 
     return (
         <div className="flex h-screen w-64 flex-col border-r bg-sidebar text-sidebar-foreground">
@@ -63,17 +62,17 @@ export function AppSidebar() {
                 </nav>
             </div>
             <div className="border-t p-4">
-                {session?.user && (
+                {user && (
                     <div className="mb-2 px-4 text-xs font-medium text-muted-foreground truncate">
-                        {session.user.name || session.user.email}
+                        {user.name || user.email}
                     </div>
                 )}
-                <form action={handleSignOut}>
+                <Link href="/auth/logout">
                     <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-destructive">
                         <LogOut className="mr-2 h-4 w-4" />
                         Log Out
                     </Button>
-                </form>
+                </Link>
                 <div className="mt-4 pt-4 border-t flex items-center justify-between px-2">
                     <span className="text-xs text-muted-foreground font-medium px-2">Theme</span>
                     <ThemeToggle />

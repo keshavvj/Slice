@@ -1,23 +1,25 @@
 'use client';
 
 import * as React from 'react';
-import { useSession } from "next-auth/react";
 import { useStore } from '@/lib/store';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useUser } from '@auth0/nextjs-auth0/client';
 
 export default function SettingsPage() {
+    const { user: auth0User } = useUser();
     const userStore = useStore();
     const { user, updateUserParams, nessieConnected, selectedCustomerId, selectedAccountId, lastFetchedAt, syncNessieData, resetAll } = userStore;
     const [isSyncing, setIsSyncing] = React.useState(false);
-    const { data: session } = useSession();
 
     React.useEffect(() => {
-        if (session?.user?.name && user.name === "Jordan Lee") {
-            updateUserParams({ name: session.user.name });
+        // Sync Auth0 name to Store if using default seed user
+        if (auth0User?.name && user.name === "Jordan Lee") {
+            updateUserParams({ name: auth0User.name });
         }
-    }, [session, user.name, updateUserParams]);
+    }, [auth0User, user.name, updateUserParams]);
 
     const handleSync = async () => {
         setIsSyncing(true);
@@ -33,7 +35,7 @@ export default function SettingsPage() {
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         Bank Integration
-                        {user.name && nessieConnected && (
+                        {auth0User?.name && nessieConnected && (
                             <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
                                 Connected
                             </span>
@@ -73,9 +75,13 @@ export default function SettingsPage() {
             <Card>
                 <CardHeader><CardTitle>Profile & Preferences</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="grid gap-2">
-                        <label className="text-sm font-medium">Name</label>
-                        <Input value={user.name} onChange={(e) => updateUserParams({ name: e.target.value })} />
+                    <div className="space-y-1">
+                        <Label htmlFor="name">Display Name</Label>
+                        <Input id="name" defaultValue={user?.name || ''} disabled />
+                    </div>
+                    <div className="space-y-1">
+                        <Label htmlFor="email">Email Address</Label>
+                        <Input id="email" defaultValue={user?.email || ''} disabled />
                     </div>
                     <div className="grid gap-2">
                         <label className="text-sm font-medium">Safe-to-Spend Buffer ($)</label>

@@ -1,14 +1,14 @@
 "use client"
 
-import { SessionProvider } from "next-auth/react"
+import { Auth0Provider } from '@auth0/nextjs-auth0/client';
 import { ThemeProvider } from "next-themes"
 
 export function Providers({ children }: { children: React.ReactNode }) {
     return (
-        <SessionProvider>
+        <Auth0Provider>
             <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
                 {children}
             </ThemeProvider>
-        </SessionProvider>
+        </Auth0Provider>
     )
 }

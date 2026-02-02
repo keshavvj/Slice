@@ -1,7 +1,6 @@
-
-import { doSignIn } from "@/lib/signin"
 import { Button } from "@/components/ui/button"
 import { ComponentProps } from "react"
+import Link from "next/link"
 
 type SignInButtonProps = {
     provider?: string
@@ -17,15 +16,17 @@ export function SignInButton({
     variant = "ghost",
     ...props
 }: SignInButtonProps) {
+    // Construct returnTo URL if redirectTo is provided
+    const returnToParam = redirectTo ? `&returnTo=${encodeURIComponent(redirectTo)}` : "";
+
+    // Use connection param to force Google if provider is google, otherwise let Auth0 decide or use default
+    const connectionParam = provider === "google" ? "connection=google-oauth2" : "";
+
+    const loginUrl = `/auth/login?${connectionParam}${returnToParam}`;
+
     return (
-        <form
-            className="inline-block"
-            action={async () => {
-                "use server"
-                await doSignIn(provider, redirectTo)
-            }}
-        >
-            <Button type="submit" variant={variant} className={className} {...props}>
+        <Link href={loginUrl}>
+            <Button variant={variant} className={className} {...props}>
                 {children ? children : (
                     <>
                         <svg
@@ -42,6 +43,6 @@ export function SignInButton({
                     </>
                 )}
             </Button>
-        </form>
+        </Link>
     )
 }

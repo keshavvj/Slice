@@ -1,20 +1,19 @@
+import { auth0 } from "@/lib/auth0";
+import type { NextRequest } from "next/server";
 
-import { auth } from "@/lib/auth"
-import { NextResponse } from "next/server"
-
-export default auth((req) => {
-    const isLoggedIn = !!req.auth
-    const isOnPublicPage = req.nextUrl.pathname === '/' || req.nextUrl.pathname.startsWith('/login')
-
-    if (!isLoggedIn && !isOnPublicPage) {
-        return NextResponse.redirect(new URL('/', req.nextUrl))
-    }
-
-    if (isLoggedIn && isOnPublicPage) {
-        return NextResponse.redirect(new URL('/dashboard', req.nextUrl))
-    }
-})
+export async function middleware(request: NextRequest) {
+    return await auth0.middleware(request);
+}
 
 export const config = {
-    matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
-}
+    matcher: [
+        '/auth/:path*', // Ensure middleware handles auth routes
+        '/dashboard/:path*',
+        '/friends/:path*',
+        '/investing/:path*',
+        '/splits/:path*',
+        '/goal/:path*',
+        '/settings/:path*',
+        '/api/nessie/:path*', // Protect backend API routes except auth/health
+    ],
+};

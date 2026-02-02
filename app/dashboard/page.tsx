@@ -11,13 +11,13 @@ import { useStore } from '@/lib/store';
 import { generatePendingSummary, generateSmartTransaction } from '@/lib/logic';
 import { Button } from '@/components/ui/button';
 import { Plus, Send, Zap, Split, ArrowUpRight } from 'lucide-react';
-import { useSession } from "next-auth/react";
 import Link from 'next/link';
 import { useEffect } from 'react';
+import { useUser } from '@auth0/nextjs-auth0/client';
 
-export default function Dashboard() {
+export default function DashboardPage() {
     const { user, transactions, setTransactions, addTransaction, nessieConnected, syncNessieData, portfolio, splitRequests, friends } = useStore();
-    const { data: session } = useSession();
+    const { user: auth0User, isLoading } = useUser();
 
     // Calculate pending summary
     const { summary: pendingSummary, total: pendingTotal } = generatePendingSummary(splitRequests, friends, transactions, user.id);
@@ -42,16 +42,11 @@ export default function Dashboard() {
             )}
 
             {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-xl font-medium text-muted-foreground">
-                        Total Balance
-                    </h2>
-                    <div className="text-5xl font-black tracking-tighter mt-1">
-                        ${(user.checkingBalance + portfolio.balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </div>
-                    <p className="text-muted-foreground mt-2 text-sm">
-                        Welcome back, {session?.user?.name?.split(' ')[0] || 'Friend'}
+                    <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+                    <p className="text-muted-foreground">
+                        Welcome back, {user?.name?.split(' ')[0] || 'there'}! Here's your financial overview.
                     </p>
                 </div>
                 <div className="flex gap-2">
