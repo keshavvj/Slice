@@ -16,7 +16,7 @@ import { useEffect } from 'react';
 import { useUser } from '@auth0/nextjs-auth0/client';
 
 export default function DashboardPage() {
-    const { user, transactions, setTransactions, addTransaction, nessieConnected, syncNessieData, portfolio, splitRequests, friends } = useStore();
+    const { user, transactions, setTransactions, addTransaction, bankConnected, fetchBankingData, portfolio, splitRequests, friends } = useStore();
     const { user: auth0User, isLoading } = useUser();
 
     // Calculate pending summary
@@ -24,20 +24,22 @@ export default function DashboardPage() {
 
     useEffect(() => {
         // Attempt to sync on mount
-        syncNessieData();
+        fetchBankingData();
     }, []);
 
     const handleSimulateCharge = () => {
         const { merchant, category, amount } = generateSmartTransaction();
-        useStore.getState().simulateNessieTransaction(merchant, amount);
+        // Optimistic local update only for demo, or remove entire button
+        // useStore.getState().addTransaction(...);
+        alert("Simulation requires backend implementation without Nessie. Skipping.");
     };
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
             {/* Data Source Banner */}
-            {!nessieConnected && (
+            {!bankConnected && (
                 <div className="w-full py-2 px-4 text-center text-xs font-bold uppercase tracking-wider rounded border bg-amber-50 text-amber-700 border-amber-200">
-                    ⚠ Using Demo Data
+                    ⚠ Demo Mode (Connect Bank in Settings)
                 </div>
             )}
 

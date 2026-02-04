@@ -3,7 +3,6 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { User, Transaction, Friend, SplitRequest, Bill, Portfolio, SharedGoal, InvestmentEntry, AppState } from '@/types';
 import { SEED_USER, SEED_FRIENDS, SEED_TRANSACTIONS, SEED_BILLS, SEED_SPLIT_REQUESTS, SEED_PORTFOLIO, SEED_GOAL } from '@/data/seed';
 import { calculateRoundup } from './logic';
-import { nessieClient } from './nessie';
 import { computeNextRunDate } from './goals';
 import { isAfter, parseISO } from 'date-fns';
 
@@ -21,11 +20,9 @@ export const useStore = create<AppState>()(
             splitRules: [],
             upcomingBills: [],
 
-            nessieConnected: false,
+            // Plaid / Banking
+            bankConnected: false,
             lastFetchedAt: null,
-            selectedCustomerId: null,
-            selectedAccountId: null,
-            lastFetchSamples: {},
 
             setTransactions: (txs) => set({ transactions: txs }),
 
@@ -152,21 +149,7 @@ export const useStore = create<AppState>()(
 
             performInvestment: async (amount, type, description) => {
                 const state = get();
-                // If connected, sync with API
-                if (state.nessieConnected && state.selectedAccountId) {
-                    try {
-                        await nessieClient.createPurchase(state.selectedAccountId, {
-                            merchant_id: "57cf75ce2e25f755279b6343", // Generic "Investment" merchant or similar
-                            amount: amount,
-                            description: description || `Investment (${type})`,
-                            medium: "balance"
-                        });
-                        // Re-sync after delay to catch update
-                        setTimeout(() => get().syncNessieData(true), 1000);
-                    } catch (e) {
-                        console.error("Investment API call failed", e);
-                    }
-                }
+                // Removed Nessie investment sync
 
                 set((state) => {
                     const newEntry: InvestmentEntry = {
@@ -391,186 +374,71 @@ export const useStore = create<AppState>()(
                 friends: state.friends.filter(f => f.id !== id)
             })),
 
-            syncNessieData: async (force = false) => {
+            fetchBankingData: async () => {
                 const state = get();
-                // Cache check: if not forced and we have recent data (e.g. < 10 mins) and txs are not empty
-                if (!force && state.nessieConnected && state.lastFetchedAt) {
-                    const tenMinsAgo = Date.now() - 10 * 60 * 1000;
-                    if (new Date(state.lastFetchedAt).getTime() > tenMinsAgo && state.transactions.length > 0) {
-                        return;
-                    }
+                // Avoid too frequent fetching if synced recently (e.g. 1 min)
+                if (state.lastFetchedAt && (Date.now() - new Date(state.lastFetchedAt).getTime() < 60000)) {
+                    // return; 
                 }
 
                 try {
-                    // 1. Fetch Customers
-                    const custRes = await nessieClient.getCustomers(true); // debug=true to get samples
-                    const customers = custRes.data || (Array.isArray(custRes) ? custRes : []);
-                    const debugSamples: any = { customers: custRes.sample || customers.slice(0, 2) };
-
-                    if (customers.length === 0) {
-                        set({ nessieConnected: true, lastFetchedAt: new Date().toISOString(), lastFetchSamples: debugSamples });
-                        return;
-                    }
-
-                    const customer = customers[0]; // Pick first
-
-                    // Match other customers to friends or create new ones
-                    const otherCustomers = customers.slice(1);
-                    const newFriends: Friend[] = [];
-
-                    // Helper to get account for a customer
-                    // We need to fetch accounts for other customers to get their IDs
-                    // This might be slow if there are many, so we'll do it for the first few
-                    for (const otherCust of otherCustomers.slice(0, 3)) {
-                        const existingFriend = state.friends.find(f => f.name === `${otherCust.first_name} ${otherCust.last_name}`);
-
-                        try {
-                            const otherAccRes = await nessieClient.getAccounts(otherCust._id);
-                            const otherAccs = otherAccRes.data || (Array.isArray(otherAccRes) ? otherAccRes : []);
-                            const mainAcc = otherAccs.find((a: any) => a.type?.toLowerCase().includes('checking')) || otherAccs[0];
-
-                            if (mainAcc) {
-                                if (existingFriend) {
-                                    // Update existing
-                                    existingFriend.nessieAccountId = mainAcc._id;
-                                } else {
-                                    // Create new
-                                    newFriends.push({
-                                        id: `friend_${otherCust._id}`,
-                                        name: `${otherCust.first_name} ${otherCust.last_name}`,
-                                        avatarInitials: `${otherCust.first_name[0]}${otherCust.last_name[0]}`.toUpperCase(),
-                                        nessieAccountId: mainAcc._id
-                                    });
-                                }
+                    // 1. Fetch Summary (Balance & Connection Status)
+                    const summaryRes = await fetch('/api/banking/summary');
+                    if (summaryRes.ok) {
+                        const data = await summaryRes.json();
+                        set(s => ({
+                            bankConnected: data.connections.length > 0,
+                            user: {
+                                ...s.user,
+                                checkingBalance: data.totalBalance || s.user.checkingBalance
                             }
-                        } catch (e) {
-                            console.error("Failed to fetch friend account", e);
-                        }
+                        }));
                     }
 
-                    // 2. Fetch Accounts
-                    const accRes = await nessieClient.getAccounts(customer._id, true);
-                    const accounts = accRes.data || (Array.isArray(accRes) ? accRes : []);
-                    debugSamples.accounts = accRes.sample || accounts.slice(0, 2);
+                    // 2. Fetch Transactions
+                    await get().fetchTransactions();
 
-                    if (accounts.length === 0) {
-                        set({
-                            nessieConnected: true,
-                            selectedCustomerId: customer._id,
-                            lastFetchedAt: new Date().toISOString(),
-                            lastFetchSamples: debugSamples
-                        });
-                        return;
-                    }
+                    set({ lastFetchedAt: new Date().toISOString() });
 
-                    // Pick first "checking" or fallback
-                    const checkingAccount = accounts.find((a: any) => a.type?.toLowerCase().includes('checking')) || accounts[0];
-
-                    // 3. Fetch Activity (Purchases, Transfers, Deposits)
-                    const [purchasesRes, transfersRes, depositsRes, billsRes] = await Promise.all([
-                        nessieClient.getPurchases(checkingAccount._id, true).catch(() => ({ data: [], sample: [] })),
-                        nessieClient.getTransfers(checkingAccount._id, true).catch(() => ({ data: [], sample: [] })),
-                        nessieClient.getDeposits(checkingAccount._id, true).catch(() => ({ data: [], sample: [] })),
-                        nessieClient.getBills(checkingAccount._id, true).catch(() => ({ data: [], sample: [] }))
-                    ]);
-
-                    debugSamples.purchases = purchasesRes.sample;
-                    debugSamples.transfers = transfersRes.sample;
-                    debugSamples.deposits = depositsRes.sample;
-                    debugSamples.bills = billsRes.sample;
-
-                    // Normalize & Merge
-                    const allActivity = [
-                        ...(purchasesRes.data || []),
-                        ...(transfersRes.data || []),
-                        ...(depositsRes.data || [])
-                    ];
-
-                    const mappedTransactions: Transaction[] = allActivity.map((p: any) => ({
-                        id: p._id || p.id,
-                        date: p.purchase_date || p.transaction_date || p.date || new Date().toISOString().split('T')[0],
-                        merchant_name: p.merchant_id ? `Merchant ${p.merchant_id.substring(0, 6)}` : (p.description || p.payee_id || "Unknown Activity"),
-                        amount: p.amount,
-                        category: p.type || 'transaction',
-                        status: 'posted' as const,
-                        accountId: checkingAccount._id
-                    })).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-                    const mappedBills: Bill[] = (billsRes.data || []).map((b: any) => ({
-                        id: b._id,
-                        name: b.nickname || b.payee,
-                        amount: b.payment_amount,
-                        dueDate: typeof b.recurring_date === 'number' ? b.recurring_date : 1
-                    }));
-
-                    set((state) => ({
-                        nessieConnected: true,
-                        selectedCustomerId: customer._id,
-                        selectedAccountId: checkingAccount._id,
-                        lastFetchedAt: new Date().toISOString(),
-                        lastFetchSamples: debugSamples,
-                        transactions: mappedTransactions,
-                        bills: mappedBills, // Strict: only use Nessie bills if connected
-                        friends: [...state.friends, ...newFriends], // Simplified join
-                        user: {
-                            ...state.user,
-                            checkingBalance: checkingAccount.balance,
-                            name: `${customer.first_name} ${customer.last_name}`
-                        }
-                    }));
-
-                } catch (error) {
-                    console.error("Nessie Sync Failed:", error);
-                    set({ nessieConnected: false });
+                } catch (e) {
+                    console.error("Failed to fetch banking data", e);
                 }
             },
 
+            fetchTransactions: async () => {
+                try {
+                    const res = await fetch('/api/transactions');
+                    if (res.ok) {
+                        const data = await res.json();
+                        // Map API txs to store Transaction type
+                        // API returns: id, plaidTransactionId, name, merchantName, amount, date, category, pending, accountName
+                        const apiTxs = data.transactions || [];
+                        const mappedTxs: Transaction[] = apiTxs.map((t: any) => ({
+                            id: t.id,
+                            date: t.date, // ISO string
+                            merchant_name: t.merchantName || t.name,
+                            amount: t.amount,
+                            category: t.category || 'Uncategorized',
+                            status: t.pending ? 'pending' : 'posted',
+                            accountId: t.accountName || 'plaid_account'
+                        }));
+
+                        set({ transactions: mappedTxs });
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch transactions", e);
+                }
+            },
+
+            // Removed simulateNessieTransaction
             simulateNessieTransaction: async (merchant, amount) => {
-                const state = get();
-                if (state.nessieConnected && state.selectedAccountId) {
-                    try {
-                        await nessieClient.createPurchase(state.selectedAccountId, {
-                            amount: amount,
-                            description: merchant,
-                            medium: "balance"
-                        });
-                        // Re-sync
-                        setTimeout(() => get().syncNessieData(true), 1000);
-                    } catch (e) {
-                        console.error("Simulation API call failed", e);
-                    }
-                }
-
-                // Optimistic Local update
-                const newTx: Transaction = {
-                    id: `sim_${Date.now()}`,
-                    date: new Date().toISOString().split('T')[0],
-                    merchant_name: merchant,
-                    amount: amount,
-                    category: 'Shopping',
-                    status: 'posted',
-                    accountId: state.selectedAccountId || 'demo_account'
-                };
-                get().addTransaction(newTx);
+                // No-op or purely local for now if called
             },
+
 
             simulatePaycheck: async (overrideAmount) => {
                 const state = get();
                 const paycheckAmount = overrideAmount !== undefined ? overrideAmount : (state.user.paycheckAmount || 2000);
-
-                // 1. Nessie Deposit (Income)
-                if (state.nessieConnected && state.selectedAccountId) {
-                    try {
-                        await nessieClient.createDeposit(state.selectedAccountId, {
-                            medium: "balance",
-                            amount: paycheckAmount,
-                            description: "Payroll Direct Deposit",
-                            transaction_date: new Date().toISOString().split('T')[0]
-                        });
-                    } catch (e) {
-                        console.error("Paycheck API deposit failed", e);
-                    }
-                }
 
                 // 2. Logic: Calculate Auto-Invest
                 let investAmount = 0;
@@ -586,18 +454,12 @@ export const useStore = create<AppState>()(
                     date: new Date().toISOString(),
                     merchant_name: "Work Gusto",
                     category: "Income",
-                    amount: paycheckAmount,
+                    amount: paycheckAmount, // Income defined as positive amount but might need negative for "spending" logic? 
+                    // Usually income adds to balance. Logic below adds it.
                     status: "posted",
                     isPaycheck: true,
-                    accountId: state.selectedAccountId || "demo_account"
+                    accountId: "manual_account"
                 };
-
-                // Add income tx (which increases balance in addTransaction logic if negative? No, logic needs review)
-                // Existing addTransaction logic subtracts amount. We need to handle Income/Deposits differently?
-                // Looking at addTransaction: checkingBalance: s.user.checkingBalance - tx.amount
-                // So for income, we should probably manually update or pass negative amount?
-                // Standard convention: Expense positive, Income negative? Or type checking?
-                // Let's do manual update here to be safe and clear.
 
                 set(s => ({
                     transactions: [incomeTx, ...s.transactions],
@@ -614,11 +476,6 @@ export const useStore = create<AppState>()(
                         get().performInvestment(investAmount, "paycheck", `Auto-Invest ${state.user.investPercent}% of Paycheck`);
                     }, 500);
                 }
-
-                // 5. Nessie Sync to confirm
-                if (state.nessieConnected) {
-                    setTimeout(() => get().syncNessieData(true), 1500);
-                }
             },
 
             settleSplit: async (friendId: string, amount: number) => {
@@ -627,21 +484,6 @@ export const useStore = create<AppState>()(
                 const roundedAmount = Number(amount.toFixed(2));
 
                 console.log(`[Store] Attempting Settle: Friend=${friend?.name || 'Unknown'}, Amount=${roundedAmount}`);
-
-                // 1. Nessie Transfer
-                if (state.nessieConnected && state.selectedAccountId && friend?.nessieAccountId) {
-                    try {
-                        await nessieClient.createTransfer(state.selectedAccountId, {
-                            medium: "balance",
-                            payee_id: friend.nessieAccountId,
-                            amount: roundedAmount,
-                            description: "Slice Settle Up"
-                        });
-                        setTimeout(() => get().syncNessieData(true), 1000);
-                    } catch (e) {
-                        console.error("Friend Settle API call failed", e);
-                    }
-                }
 
                 // 2. Mark pending splits as paid via API
                 const pendingOwing = state.splitRequests.filter(
@@ -662,7 +504,7 @@ export const useStore = create<AppState>()(
                     category: 'Transfer',
                     amount: roundedAmount,
                     status: "posted",
-                    accountId: state.selectedAccountId || "demo_account"
+                    accountId: "manual_account"
                 };
 
                 set((state) => ({
@@ -679,22 +521,6 @@ export const useStore = create<AppState>()(
                 const friend = state.friends.find(f => f.id === friendId);
                 const roundedAmount = Number(amount.toFixed(2));
 
-                // 1. Nessie Transfer
-                if (state.nessieConnected && state.selectedAccountId && friend?.nessieAccountId) {
-                    try {
-                        await nessieClient.createTransfer(state.selectedAccountId, {
-                            medium: "balance",
-                            payee_id: friend.nessieAccountId,
-                            amount: roundedAmount,
-                            description: note || `Sent to ${friend.name}`
-                        });
-                        // Re-sync
-                        setTimeout(() => get().syncNessieData(true), 1000);
-                    } catch (e) {
-                        console.error("Send Money API call failed", e);
-                    }
-                }
-
                 // 2. Local Update (Optimistic Transaction)
                 const newTx: Transaction = {
                     id: `tx_sent_${Date.now()}`,
@@ -703,7 +529,7 @@ export const useStore = create<AppState>()(
                     category: 'Transfer',
                     amount: roundedAmount,
                     status: "posted",
-                    accountId: state.selectedAccountId || "demo_account"
+                    accountId: "manual_account"
                 };
 
                 set((state) => ({

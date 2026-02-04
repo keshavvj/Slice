@@ -115,12 +115,9 @@ export type AppState = {
   portfolio: Portfolio;
   goals: SharedGoal[];
 
-  // Nessie Integration State
-  nessieConnected: boolean;
+  // Plaid Integration State
+  bankConnected: boolean;
   lastFetchedAt: string | null;
-  selectedCustomerId: string | null;
-  selectedAccountId: string | null;
-  lastFetchSamples?: any; // For debug panel
 
   // Actions
   setTransactions: (txs: Transaction[]) => void;
@@ -138,8 +135,8 @@ export type AppState = {
   addFriend: (friend: Friend) => void;
   removeFriend: (id: string) => void;
 
-  syncNessieData: (force?: boolean) => Promise<void>;
-  simulateNessieTransaction: (merchant: string, amount: number) => void;
+  fetchBankingData: () => Promise<void>;
+  fetchTransactions: () => Promise<void>;
   simulatePaycheck: (overrideAmount?: number) => Promise<void>;
   settleSplit: (friendId: string, amount: number) => Promise<void>;
   sendMoney: (friendId: string, amount: number, note: string) => Promise<void>;

@@ -31,6 +31,11 @@ model User {
   splitMemberships SplitMember[]
   sentSplits       SplitRequest[]  @relation("SentSplits")
   receivedSplits   SplitRequest[]  @relation("ReceivedSplits")
+
+  // Plaid Relations
+  bankConnections  BankConnection[]
+  bankAccounts     BankAccount[]
+  transactions     Transaction[]
 }
 
 model FriendRequest {
@@ -161,6 +166,101 @@ model SplitRequest {
   toUser         User        @relation("ReceivedSplits", fields: [toUserId], references: [id])
 
   @@index([fromUserId])
+
   @@index([toUserId])
   @@index([status])
+}
+
+// --- Plaid Banking Integration ---
+
+model BankConnection {
+  id                  String   @id @default(cuid())
+  userId              String
+  plaidItemId         String   @unique
+  institutionId       String?
+  institutionName     String?
+
+  // Encrypted access token
+  accessTokenCiphertext String
+  accessTokenIv         String
+  accessTokenTag        String
+  
+  status              String   @default("active") // active, error, disconnected
+  lastSyncAt          DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accounts            BankAccount[]
+  transactionCursor   TransactionCursor?
+  
+  @@index([userId])
+}
+
+model BankAccount {
+  id                  String   @id @default(cuid())
+  userId              String
+  bankConnectionId    String
+
+  plaidAccountId      String   @unique
+  name                String
+  mask                String?
+  type                String   // depository, credit, loan, etc.
+  subtype             String?  // checking, savings, etc.
+
+  currentBalance      Float?
+  availableBalance    Float?
+  isoCurrencyCode     String?
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user                User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connection          BankConnection @relation(fields: [bankConnectionId], references: [id], onDelete: Cascade)
+  transactions        Transaction[]
+
+  @@index([userId])
+  @@index([bankConnectionId])
+}
+
+model Transaction {
+  id                  String   @id @default(cuid())
+  userId              String
+  bankAccountId       String
+
+  plaidTransactionId  String   @unique
+  name                String
+  merchantName        String?
+  amount              Float    // Plaid: postive = pending spent, negative = refund/deposit.
+  isoCurrencyCode     String?
+
+  date                DateTime
+  authorizedDate      DateTime?
+
+  pending             Boolean  @default(false)
+  paymentChannel      String?
+
+  categoryPrimary     String?
+  categoryDetailed    String?
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user                User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account             BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([bankAccountId])
+  @@index([date])
+}
+
+model TransactionCursor {
+  id                  String   @id @default(cuid())
+  bankConnectionId    String   @unique
+  cursor              String?
+  lastSyncAt          DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  connection          BankConnection @relation(fields: [bankConnectionId], references: [id], onDelete: Cascade)
 }
